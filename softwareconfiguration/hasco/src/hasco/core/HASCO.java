@@ -2,9 +2,11 @@ package hasco.core;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -89,6 +91,9 @@ public class HASCO<ISearch, N, A, V extends Comparable<V>> implements SoftwareCo
 	private boolean searchCreatedAndInitialized = false;
 	private final TimeRecordingEvaluationWrapper<V> timeGrabbingEvaluationWrapper;
 	private HASCOSolutionCandidate<V> bestRecognizedSolution;
+	
+	/**Extension: Allow other clients to listen to search events */
+	Set<Object> searchListeners = new HashSet<>();
 
 	public HASCO(RefinementConfiguredSoftwareConfigurationProblem<V> configurationProblem, IHASCOPlanningGraphGeneratorDeriver<N, A> planningGraphGeneratorDeriver,
 			IGraphSearchFactory<ISearch, ?, N, A, V, ?, ?> searchFactory, AlgorithmProblemTransformer<GraphSearchProblemInput<N, A, V>, ISearch> searchProblemTransformer) {
@@ -186,6 +191,11 @@ public class HASCO<ISearch, N, A, V extends Comparable<V>> implements SoftwareCo
 					}
 				}
 
+				/* register external listeners */
+				for (Object listener : searchListeners) {
+					search.registerListener(listener);
+				}
+				
 				/* now initialize the search */
 				logger.debug("Initializing the search");
 				boolean searchInitializationObserved = false;
@@ -272,7 +282,15 @@ public class HASCO<ISearch, N, A, V extends Comparable<V>> implements SoftwareCo
 	public void registerListenerForSolutionEvaluations(final Object listener) {
 		this.eventBus.register(listener);
 	}
+	
+	public void registerListenerForSearch (final Object listener) {
+		this.searchListeners.add(listener);
+	}
 
+	public void removeListenerForSearch(final Object listener) {
+		this.searchListeners.remove(listener);
+	}
+	
 	public GraphGenerator<N, A> getGraphGenerator() {
 		return searchProblem.getGraphGenerator();
 	}
