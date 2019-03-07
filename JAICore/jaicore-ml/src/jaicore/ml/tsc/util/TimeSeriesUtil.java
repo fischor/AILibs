@@ -14,6 +14,7 @@ import java.util.stream.IntStream;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 
+import jaicore.basic.sets.SetUtil.Pair;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.exceptions.TimeSeriesLengthException;
 
@@ -401,7 +402,7 @@ public class TimeSeriesUtil {
 		if (dataset == null || dataset.getTargets() == null)
 			throw new IllegalArgumentException(
 					"Given parameter 'dataset' must not be null and must contain a target matrix!");
-		
+
 		return getClassesInDataset(dataset).size();
 	}
 
@@ -418,7 +419,7 @@ public class TimeSeriesUtil {
 		if (dataset == null || dataset.getTargets() == null)
 			throw new IllegalArgumentException(
 					"Given parameter 'dataset' must not be null and must contain a target matrix!");
-		
+
 		return IntStream.of(dataset.getTargets()).boxed().collect(Collectors.toSet()).stream()
 				.collect(Collectors.toList());
 	}
@@ -516,4 +517,134 @@ public class TimeSeriesUtil {
 		}
 		return result;
 	}
+
+	/**
+	 * Functions creating two {@link TimeSeriesDataset} objects representing the
+	 * training and test split for the given <code>fold</code> of a cross validation
+	 * with <code>numFolds</code> many folds. Data is extracted (and copied) from
+	 * the given <code>srcValueMatrix</code> and <code>srcTargetMatrix</code>. The
+	 * function uses the two functions
+	 * {@link TimeSeriesUtil#selectTrainingDataForFold(int, int, int, int, double[][], int[])}
+	 * and
+	 * {@link TimeSeriesUtil#selectTestDataForFold(int, int, int, int, double[][], int[])}.
+	 * 
+	 * @param fold
+	 *            The current fold for which the datasets should be prepared
+	 * @param numFolds
+	 *            Number of total folds using within the performed cross validation
+	 * @param numTestInstsPerFold
+	 *            Number of instances used for tests within every fold iteration
+	 * @param numClasses
+	 *            Number of classes in the targets
+	 * @param srcValueMatrix
+	 *            Source dataset from which the instances are copied
+	 * @param srcTargetMatrix
+	 *            Source targets from which the targets are copied
+	 * @return Returns a pair consisting of the training and test dataset
+	 */
+	public static Pair<TimeSeriesDataset, TimeSeriesDataset> getTrainingAndTestDataForFold(final int fold,
+			final int numFolds, final int numTestInstsPerFold, final int numClasses, final double[][] srcValueMatrix,
+			final int[] srcTargetMatrix) {
+		return new Pair<TimeSeriesDataset, TimeSeriesDataset>(
+				selectTrainingDataForFold(fold, numFolds, numTestInstsPerFold, numClasses, srcValueMatrix,
+						srcTargetMatrix),
+				selectTestDataForFold(fold, numFolds, numTestInstsPerFold, numClasses, srcValueMatrix,
+						srcTargetMatrix));
+	}
+
+	/**
+	 * Generates the training dataset for a fold. See
+	 * {@link TimeSeriesUtil#getTrainingAndTestDataForFold(int, int, int, int, double[][], int[])
+	 * for further details.
+	 * 
+	 * @param fold
+	 *            The current fold for which the datasets should be prepared
+	 * @param numFolds
+	 *            Number of total folds using within the performed cross validation
+	 * @param numTestInstsPerFold
+	 *            Number of instances used for tests within every fold iteration
+	 * @param numClasses
+	 *            Number of classes in the targets
+	 * @param srcValueMatrix
+	 *            Source dataset from which the instances are copied
+	 * @param srcTargetMatrix
+	 *            Source targets from which the targets are copied
+	 * @return Returns a pair consisting of the training and test dataset
+	 */
+	private static TimeSeriesDataset selectTrainingDataForFold(final int fold, final int numFolds,
+			final int numTestInstsPerFold, final int numClasses, final double[][] srcValueMatrix,
+			final int[] srcTargetMatrix) {
+
+		double[][] destValueMatrix = new double[(numFolds - 1) * numTestInstsPerFold][numClasses];
+		int[] destTargetMatrix = new int[(numFolds - 1) * numTestInstsPerFold];
+
+		if (fold == 0) { // First fold
+			System.arraycopy(srcValueMatrix, numTestInstsPerFold, destValueMatrix, 0,
+					(numFolds - 1) * numTestInstsPerFold);
+
+			System.arraycopy(srcTargetMatrix, numTestInstsPerFold, destTargetMatrix, 0,
+					(numFolds - 1) * numTestInstsPerFold);
+
+		} else if (fold == (numFolds - 1)) { // Last fold
+			System.arraycopy(srcValueMatrix, 0, destValueMatrix, 0, (numFolds - 1) * numTestInstsPerFold);
+
+			System.arraycopy(srcTargetMatrix, 0, destTargetMatrix, 0, (numFolds - 1) * numTestInstsPerFold);
+
+		} else { // Inner folds
+			System.arraycopy(srcValueMatrix, 0, destValueMatrix, 0, fold * numTestInstsPerFold);
+			System.arraycopy(srcValueMatrix, (fold + 1) * numTestInstsPerFold, destValueMatrix,
+					fold * numTestInstsPerFold, (numFolds - fold - 1) * numTestInstsPerFold);
+
+			System.arraycopy(srcTargetMatrix, 0, destTargetMatrix, 0, fold * numTestInstsPerFold);
+			System.arraycopy(srcTargetMatrix, (fold + 1) * numTestInstsPerFold, destTargetMatrix,
+					fold * numTestInstsPerFold, (numFolds - fold - 1) * numTestInstsPerFold);
+		}
+
+		ArrayList<double[][]> valueMatrices = new ArrayList<>();
+		valueMatrices.add(destValueMatrix);
+		return new TimeSeriesDataset(valueMatrices, destTargetMatrix);
+	}
+
+	/**
+	 * Generates the test dataset for a fold. See
+	 * {@link TimeSeriesUtil#getTrainingAndTestDataForFold(int, int, int, int, double[][], int[])
+	 * for further details.
+	 * 
+	 * @param fold
+	 *            The current fold for which the datasets should be prepared
+	 * @param numFolds
+	 *            Number of total folds using within the performed cross validation
+	 * @param numTestInstsPerFold
+	 *            Number of instances used for tests within every fold iteration
+	 * @param numClasses
+	 *            Number of classes in the targets
+	 * @param srcValueMatrix
+	 *            Source dataset from which the instances are copied
+	 * @param srcTargetMatrix
+	 *            Source targets from which the targets are copied
+	 * @return Returns a pair consisting of the training and test dataset
+	 */
+	private static TimeSeriesDataset selectTestDataForFold(final int fold, final int numFolds,
+			final int numTestInstsPerFold, final int numClasses, final double[][] srcValueMatrix,
+			final int[] srcTargetMatrix) {
+		double[][] currTestMatrix;
+		int[] currTestTargetMatrix;
+		if (fold == (numFolds - 1)) {
+			int remainingLength = srcValueMatrix.length - (numFolds - 1) * numTestInstsPerFold;
+			currTestMatrix = new double[remainingLength][numClasses];
+			currTestTargetMatrix = new int[remainingLength];
+		} else {
+			currTestMatrix = new double[numTestInstsPerFold][numClasses];
+			currTestTargetMatrix = new int[numTestInstsPerFold];
+		}
+
+		System.arraycopy(srcValueMatrix, fold * numTestInstsPerFold, currTestMatrix, 0, currTestMatrix.length);
+		System.arraycopy(srcTargetMatrix, fold * numTestInstsPerFold, currTestTargetMatrix, 0,
+				currTestTargetMatrix.length);
+
+		ArrayList<double[][]> testValueMatrices = new ArrayList<>();
+		testValueMatrices.add(currTestMatrix);
+		return new TimeSeriesDataset(testValueMatrices, currTestTargetMatrix);
+	}
+
 }

@@ -93,13 +93,13 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			LOGGER.info(
 					"Only univariate data is used for training (matrix index 0), although multivariate data is available.");
 
-		// Shuffle instances?
+		// Shuffle instances
 		TimeSeriesUtil.shuffleTimeSeriesDataset(dataset, this.seed);
 
 		double[][] data = dataset.getValuesOrNull(0);
 		int[] targets = dataset.getTargets();
-		
-		if(data == null || data.length == 0 || targets == null || targets.length == 0)
+
+		if (data == null || data.length == 0 || targets == null || targets.length == 0)
 			throw new IllegalArgumentException(
 					"The given dataset for training must not contain a null or empty data or target matrix.");
 
@@ -116,7 +116,6 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		// TODO Subsequences and feature extraction
 		int T = data[0].length; // Time series length
 		int lMin = (int) (this.zProp * T);
-
 
 		int wMin = this.minIntervalLength; // Minimum interval length used for meaningful intervals
 
@@ -159,97 +158,28 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		int[] targetMatrix = new int[(r - d) * data.length];
 
 		for (int i = 0; i < r - d; i++) {
-			
+
 			for (int j = 0; j < data.length; j++) {
-				double[] intervalFeatures = new double[d*3];
-				for(int k=0; k<d; k++) {
+				double[] intervalFeatures = new double[d * 3];
+				for (int k = 0; k < d; k++) {
 					intervalFeatures[k * 3] = generatedFeatures[j][i][k][0];
 					intervalFeatures[k * 3 + 1] = generatedFeatures[j][i][k][1];
 					intervalFeatures[k * 3 + 2] = generatedFeatures[j][i][k][2];
 				}
 				subSeqValueMatrix[i * data.length + j] = intervalFeatures;
-				
+
 				targetMatrix[i * data.length + j] = targets[j];
 			}
 		}
 
-		double[][] probs = new double[(r - d) * data.length][C];
-		int numTestInstsPerFold = (int) ((double) probs.length / (double) numFolds);
-
-		// rf.measureOutOfBagError()
-		// TODO: Measure OOB probabilities
-		for (int i = 0; i < numFolds; i++) {
-			RandomForest rf = new RandomForest();
-
-			double[][] trainingValueMatrix = new double[(numFolds - 1) * numTestInstsPerFold][C];
-			int[] trainingTargetMatrix = new int[(numFolds - 1) * numTestInstsPerFold];
-			if (i == 0) { // First fold
-				System.arraycopy(subSeqValueMatrix, numTestInstsPerFold, trainingValueMatrix, 0,
-						(numFolds - 1) * numTestInstsPerFold);
-
-				System.arraycopy(targetMatrix, numTestInstsPerFold, trainingTargetMatrix, 0,
-						(numFolds - 1) * numTestInstsPerFold);
-
-			} else if (i == (numFolds - 1)) { // Last fold
-				System.arraycopy(subSeqValueMatrix, 0, trainingValueMatrix, 0, (numFolds - 1) * numTestInstsPerFold);
-
-				System.arraycopy(targetMatrix, 0, trainingTargetMatrix, 0, (numFolds - 1) * numTestInstsPerFold);
-
-			} else { // Inner folds
-				System.arraycopy(subSeqValueMatrix, 0, trainingValueMatrix, 0, i * numTestInstsPerFold);
-				System.arraycopy(subSeqValueMatrix, (i + 1) * numTestInstsPerFold, trainingValueMatrix,
-						i * numTestInstsPerFold, (numFolds - i - 1) * numTestInstsPerFold);
-
-				System.arraycopy(targetMatrix, 0, trainingTargetMatrix, 0, i * numTestInstsPerFold);
-				System.arraycopy(targetMatrix, (i + 1) * numTestInstsPerFold, trainingTargetMatrix,
-						i * numTestInstsPerFold, (numFolds - i - 1) * numTestInstsPerFold);
-			}
-
-			ArrayList<double[][]> valueMatrices = new ArrayList<>();
-			valueMatrices.add(trainingValueMatrix);
-			TimeSeriesDataset trainingDS = new TimeSeriesDataset(valueMatrices, trainingTargetMatrix);
-
-			try {
-				WekaUtil.buildWekaClassifierFromSimplifiedTS(rf, trainingDS);
-			} catch (TrainingException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return null;
-			}
-
-			// Store probabilities
-			double[][] currTestMatrix;
-			int[] currTestTargetMatrix;
-			if (i == (numFolds - 1)) {
-				int remainingLength = probs.length - (numFolds - 1) * numTestInstsPerFold;
-				currTestMatrix = new double[remainingLength][C];
-				currTestTargetMatrix = new int[remainingLength];
-			} else {
-				currTestMatrix = new double[numTestInstsPerFold][C];
-				currTestTargetMatrix = new int[numTestInstsPerFold];
-			}
-
-			System.arraycopy(subSeqValueMatrix, i * numTestInstsPerFold, currTestMatrix, 0, currTestMatrix.length);
-			System.arraycopy(targetMatrix, i * numTestInstsPerFold, currTestTargetMatrix, 0, currTestTargetMatrix.length);
-			
-			ArrayList<double[][]> testValueMatrices = new ArrayList<>();
-			testValueMatrices.add(currTestMatrix);
-			TimeSeriesDataset testDataset = new TimeSeriesDataset(testValueMatrices, currTestTargetMatrix);
-			Instances testInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(testDataset,
-					IntStream.rangeClosed(0, C - 1).boxed().map(v -> String.valueOf(v)).collect(Collectors.toList()));
-
-			double[][] testProbs = null;
-			try {
-				testProbs = rf.distributionsForInstances(testInstances);
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return null;
-			}
-			for (int j = 0; j < testProbs.length; j++) {
-				probs[i * numTestInstsPerFold + j] = testProbs[j];
-			}
+		// Measure OOB probabilities
+		double[][] probs = null;
+		try {
+			probs = measureOOBProbabilitiesUsingCV(subSeqValueMatrix, targetMatrix, (r - d) * data.length, numFolds, C);
+		} catch (TrainingException e1) {
+			throw new AlgorithmException(e1, "Could not measure OOB probabilities using CV.");
 		}
+
 		// Train final subseries classifier
 		RandomForest subseriesClf = new RandomForest();
 
@@ -259,9 +189,8 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		try {
 			WekaUtil.buildWekaClassifierFromSimplifiedTS(subseriesClf, finalSubseriesDataset);
 		} catch (TrainingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			return null;
+			throw new AlgorithmException(e,
+					"Could not train the sub series Random Forest classifier due to an internal Weka exception.");
 		}
 
 		// TODO: Discretize probability and form histogram
@@ -283,8 +212,8 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		try {
 			WekaUtil.buildWekaClassifierFromSimplifiedTS(finalClf, finalDataset);
 		} catch (TrainingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			throw new AlgorithmException(e,
+					"Could not train the final Random Forest classifier due to an internal Weka exception.");
 		}
 
 		this.model.setSubseriesClf(subseriesClf);
@@ -320,10 +249,49 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		return results;
 	}
 
+	public static double[][] measureOOBProbabilitiesUsingCV(final double[][] subSeqValueMatrix,
+			final int[] targetMatrix, final int numProbInstances, final int numFolds, final int numClasses)
+			throws TrainingException {
+
+		double[][] probs = new double[numProbInstances][numClasses];
+		int numTestInstsPerFold = (int) ((double) probs.length / (double) numFolds);
+
+		for (int i = 0; i < numFolds; i++) {
+			RandomForest rf = new RandomForest();
+
+			// Generate training instances for fold
+			Pair<TimeSeriesDataset, TimeSeriesDataset> trainingTestDatasets = TimeSeriesUtil
+					.getTrainingAndTestDataForFold(i, numFolds, numTestInstsPerFold, numClasses, subSeqValueMatrix,
+							targetMatrix);
+			TimeSeriesDataset trainingDS = trainingTestDatasets.getX();
+
+			WekaUtil.buildWekaClassifierFromSimplifiedTS(rf, trainingDS);
+
+			// Prepare test instances
+			TimeSeriesDataset testDataset = trainingTestDatasets.getY();
+			Instances testInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(testDataset, IntStream
+					.rangeClosed(0, numClasses - 1).boxed().map(v -> String.valueOf(v)).collect(Collectors.toList()));
+
+			double[][] testProbs = null;
+			try {
+				testProbs = rf.distributionsForInstances(testInstances);
+			} catch (Exception e) {
+				String errorMessage = "Could not induce test probabilities in OOB probability estimation due to an internal Weka error.";
+				LOGGER.error(errorMessage, e);
+				throw new TrainingException(errorMessage, e);
+			}
+
+			// Store induced probabilities
+			for (int j = 0; j < testProbs.length; j++) {
+				probs[i * numTestInstsPerFold + j] = testProbs[j];
+			}
+		}
+
+		return probs;
+	}
+
 	public static Pair<int[][][], int[][]> formHistogramsAndRelativeFreqs(final int[][] discretizedProbs,
-			final int[] targets, final int numInstances,
-			final int numClasses,
-			final int numBins) {
+			final int[] targets, final int numInstances, final int numClasses, final int numBins) {
 		final int[][][] histograms = new int[numInstances][numClasses][numBins];
 		final int[][] relativeFrequencies = new int[numInstances][numClasses];
 
@@ -337,7 +305,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 				int bin = discretizedProbs[i][c];
 				histograms[instanceIdx][c][bin]++;
 			}
-			
+
 			int predClass = MathUtil.argmax(discretizedProbs[i]);
 			relativeFrequencies[instanceIdx][predClass]++;
 		}
@@ -347,7 +315,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 	public static int[][] discretizeProbs(final int numBins, final double[][] probs) {
 		int[][] results = new int[probs.length][probs[0].length];
-		
+
 		final double steps = 1d / (double) numBins;
 
 		for (int i = 0; i < results.length; i++) {
