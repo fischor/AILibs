@@ -31,27 +31,22 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 	private int numClasses;
 	private int[][][] subsequences;
 
-	public TimeSeriesBagOfFeaturesClassifier(final int seed, final int numBins, final int numFolds,
-			final double zProp, final int minIntervalLength) {
+	public TimeSeriesBagOfFeaturesClassifier(final int seed, final int numBins, final int numFolds, final double zProp,
+			final int minIntervalLength) {
 		super(new TimeSeriesBagOfFeaturesAlgorithm(seed, numBins, numFolds, zProp, minIntervalLength));
-		// TODO Auto-generated constructor stub
 	}
-
 
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
 		// TODO Auto-generated method stub
 
 		// Generate features and interval instances
-		// double[][][] generatedFeatures = new
-		// double[subsequences.length][subsequences[0].length][TimeSeriesFeature.NUM_FEATURE_TYPES];
 		double[][] intervalFeatures = new double[subsequences.length][subsequences[0].length * 3];
-		// int[] intervalTargets = new int[subsequences.length];
 
 		for (int i = 0; i < subsequences.length; i++) {
 			for (int j = 0; j < subsequences[i].length; j++) {
 				double[] tmpFeatures = TimeSeriesFeature.getFeatures(univInstance, subsequences[i][j][0],
-						subsequences[i][j][1] - 1, true);
+						subsequences[i][j][1] - 1, false);
 
 				intervalFeatures[i][j * 3] = tmpFeatures[0];
 				intervalFeatures[i][j * 3 + 1] = tmpFeatures[1];
@@ -73,16 +68,14 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 				predictedTargets[i] = (int) this.subseriesClf.classifyInstance(subseriesInstances.get(i));
 			}
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-
-			throw new PredictionException("");
+			final String errorMessage = "Cannot derive the probabilities using the subseries classifier due to an internal Weka exception.";
+			LOGGER.warn(errorMessage, e);
+			throw new PredictionException(errorMessage, e);
 		}
 
 		int[][] discretizedProbs = TimeSeriesBagOfFeaturesAlgorithm.discretizeProbs(this.numBins, probs);
 		Pair<int[][][], int[][]> histFreqPair = TimeSeriesBagOfFeaturesAlgorithm
-				.formHistogramsAndRelativeFreqs(discretizedProbs, predictedTargets, 1,
-				this.numClasses, this.numBins);
+				.formHistogramsAndRelativeFreqs(discretizedProbs, predictedTargets, 1, this.numClasses, this.numBins);
 		int[][][] histograms = histFreqPair.getX();
 		int[][] relativeFrequencies = histFreqPair.getY();
 
@@ -91,30 +84,35 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 		ArrayList<double[][]> finalMatrices = new ArrayList<>();
 		finalMatrices.add(finalHistogramInstances);
 		TimeSeriesDataset finalDataset = new TimeSeriesDataset(finalMatrices);
-		Instances finalInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(finalDataset,
-				IntStream.rangeClosed(0, this.numClasses - 1).boxed().map(i -> String.valueOf(i))
-						.collect(Collectors.toList()));
-		
-		if(finalInstances.size() != 1) {
-			// TODO
-			throw new PredictionException("There should be only one instance.");
+		Instances finalInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(finalDataset, IntStream
+				.rangeClosed(0, this.numClasses - 1).boxed().map(i -> String.valueOf(i)).collect(Collectors.toList()));
+
+		if (finalInstances.size() != 1) {
+			final String errorMessage = "There should be only one instance given to the final Random Forest classifier.";
+			throw new PredictionException(errorMessage, new IllegalStateException(errorMessage));
 		}
-			
+
 		try {
-			double pred = this.finalClf.classifyInstance(finalInstances.firstInstance());
-			// System.out.println(pred);
-			return (int) pred;
+			int pred = (int) this.finalClf.classifyInstance(finalInstances.firstInstance());
+			LOGGER.debug("Prediction for instance {}: {}", finalInstances.firstInstance(), pred);
+			return pred;
 		} catch (Exception e) {
-			throw new PredictionException("Could not predict instance due to a Weka exception.", e);
+			throw new PredictionException("Could not predict instance due to an internal Weka exception.", e);
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public Integer predict(List<double[]> multivInstance) throws PredictionException {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("Multivariate prediction is not supported yet.");
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public List<Integer> predict(TimeSeriesDataset dataset) throws PredictionException {
 		// TODO

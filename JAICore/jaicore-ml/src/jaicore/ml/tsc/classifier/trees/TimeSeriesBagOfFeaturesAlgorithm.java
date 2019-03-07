@@ -119,7 +119,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 		int wMin = this.minIntervalLength; // Minimum interval length used for meaningful intervals
 
-		if (lMin == T)
+		if (lMin >= T - wMin)
 			lMin -= wMin;
 
 		int d = lMin > wMin ? (int) Math.floor((double) lMin / (double) wMin) : 1; // Number of intervals for each
@@ -146,7 +146,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			for (int j = 0; j < r - d; j++) {
 				for (int k = 0; k < d; k++) {
 					generatedFeatures[i][j][k] = TimeSeriesFeature.getFeatures(data[i], subsequences[j][k][0],
-							subsequences[j][k][1] - 1, true);
+							subsequences[j][k][1] - 1, false);
 				}
 			}
 		}

@@ -28,62 +28,64 @@ import weka.core.Instances;
  */
 public class WekaUtil {
 
-    /**
-     * Stacks the given matrices horizontally.
-     * 
-     * @param matrices List of INDArray matrices to be stacked
-     * @return Returns one INDArray containing all <code>matrices</code>. New
-     *         dimensionality is (originalShape[0] x sum of originalShape[1]s)
-     */
-    private static INDArray hstackINDArrays(List<INDArray> matrices) {
-        // Check first shape dimension
-        if (matrices.size() > 0) {
-            long[] shape = matrices.get(0).shape();
-            for (int i = 1; i < matrices.size(); i++) {
-                if (matrices.get(i).shape()[0] != shape[0])
-                    throw new IllegalArgumentException("First dimensionality of the given matrices must be equal!");
-            }
-        }
+	/**
+	 * Stacks the given matrices horizontally.
+	 * 
+	 * @param matrices
+	 *            List of INDArray matrices to be stacked
+	 * @return Returns one INDArray containing all <code>matrices</code>. New
+	 *         dimensionality is (originalShape[0] x sum of originalShape[1]s)
+	 */
+	private static INDArray hstackINDArrays(List<INDArray> matrices) {
+		// Check first shape dimension
+		if (matrices.size() > 0) {
+			long[] shape = matrices.get(0).shape();
+			for (int i = 1; i < matrices.size(); i++) {
+				if (matrices.get(i).shape()[0] != shape[0])
+					throw new IllegalArgumentException("First dimensionality of the given matrices must be equal!");
+			}
+		}
 
-        INDArray combinedMatrix;
-        if (matrices.size() > 0) {
-            combinedMatrix = matrices.get(0).dup();
-            for (int i = 1; i < matrices.size(); i++) {
-                combinedMatrix = Nd4j.hstack(combinedMatrix, matrices.get(i));
-            }
-        } else {
-            // If an empty list was given, return an empty matrix
-            combinedMatrix = Nd4j.create(0, 0);
-        }
-        return combinedMatrix;
+		INDArray combinedMatrix;
+		if (matrices.size() > 0) {
+			combinedMatrix = matrices.get(0).dup();
+			for (int i = 1; i < matrices.size(); i++) {
+				combinedMatrix = Nd4j.hstack(combinedMatrix, matrices.get(i));
+			}
+		} else {
+			// If an empty list was given, return an empty matrix
+			combinedMatrix = Nd4j.create(0, 0);
+		}
+		return combinedMatrix;
 
-    }
+	}
 
-    /**
-     * Maps a time series instance to a Weka instance.
-     * 
-     * @param instance The time series instance storing the time series data and the
-     *                 target value
-     * @return Returns the Weka instance containing the time series data and the
-     *         class information.
-     */
-    // TODO: Add meta attribute support
-    public static Instance tsInstanceToWekaInstance(final TimeSeriesInstance instance) {
-        List<IAttributeValue<?>> attValues = instance.getAttributeValues();
-        List<INDArray> indArrays = new ArrayList<>();
+	/**
+	 * Maps a time series instance to a Weka instance.
+	 * 
+	 * @param instance
+	 *            The time series instance storing the time series data and the
+	 *            target value
+	 * @return Returns the Weka instance containing the time series data and the
+	 *         class information.
+	 */
+	// TODO: Add meta attribute support
+	public static Instance tsInstanceToWekaInstance(final TimeSeriesInstance instance) {
+		List<IAttributeValue<?>> attValues = instance.getAttributeValues();
+		List<INDArray> indArrays = new ArrayList<>();
 
-        for (final IAttributeValue<?> attValue : attValues) {
-            if (attValue instanceof TimeSeriesAttributeValue) {
-                indArrays.add(((TimeSeriesAttributeValue) attValue).getValue());
-            }
-        }
+		for (final IAttributeValue<?> attValue : attValues) {
+			if (attValue instanceof TimeSeriesAttributeValue) {
+				indArrays.add(((TimeSeriesAttributeValue) attValue).getValue());
+			}
+		}
 
-        INDArray combinedMatrix = hstackINDArrays(indArrays);
+		INDArray combinedMatrix = hstackINDArrays(indArrays);
 
-        final Instance finalInstance = new DenseInstance(1, Nd4j.toFlattened(combinedMatrix).toDoubleVector());
-        finalInstance.setClassValue(instance.getTargetValue(String.class).getValue());
-        return finalInstance;
-    }
+		final Instance finalInstance = new DenseInstance(1, Nd4j.toFlattened(combinedMatrix).toDoubleVector());
+		finalInstance.setClassValue(instance.getTargetValue(String.class).getValue());
+		return finalInstance;
+	}
 
 	/**
 	 * Maps an univariate simplified time series instance to a Weka instance.
@@ -99,7 +101,7 @@ public class WekaUtil {
 		return finalInstance;
 	}
 
-    /**
+	/**
 	 * Trains a given Weka <code>classifier</code> using the time series data set
 	 * <code>timeSeriesDataset</code>.
 	 * 
@@ -112,18 +114,18 @@ public class WekaUtil {
 	 *             Throws exception if the training could not be finished
 	 *             successfully
 	 */
-    public static void buildWekaClassifierFromTS(final Classifier classifier, final TimeSeriesDataset timeSeriesDataset)
-            throws TrainingException {
+	public static void buildWekaClassifierFromTS(final Classifier classifier, final TimeSeriesDataset timeSeriesDataset)
+			throws TrainingException {
 
-        final Instances trainingInstances = timeSeriesDatasetToWekaInstances(timeSeriesDataset);
+		final Instances trainingInstances = timeSeriesDatasetToWekaInstances(timeSeriesDataset);
 
-        try {
-            classifier.buildClassifier(trainingInstances);
-        } catch (Exception e) {
-            throw new TrainingException(String.format("Could not train classifier %d due to a Weka exception.",
-                    classifier.getClass().getName()), e);
-        }
-    }
+		try {
+			classifier.buildClassifier(trainingInstances);
+		} catch (Exception e) {
+			throw new TrainingException(String.format("Could not train classifier %d due to a Weka exception.",
+					classifier.getClass().getName()), e);
+		}
+	}
 
 	/**
 	 * Trains a given Weka <code>classifier</code> using the simplified time series
@@ -151,84 +153,87 @@ public class WekaUtil {
 		}
 	}
 
-    /**
-     * Converts Weka instances to an INDArray matrix.
-     * 
-     * @param instances Weka instances to be converted.
-     * @param keepClass Determines whether the class attribute should be stored in
-     *                  the result matrix
-     * @return Returns an INDArray consisting of all instances with the shape
-     *         (number instances x number attributes)
-     */
-    public static INDArray wekaInstancesToINDArray(final Instances instances, final boolean keepClass) {
-        if (instances == null || instances.size() == 0)
-            throw new IllegalArgumentException("Instances must not be null or empty!");
+	/**
+	 * Converts Weka instances to an INDArray matrix.
+	 * 
+	 * @param instances
+	 *            Weka instances to be converted.
+	 * @param keepClass
+	 *            Determines whether the class attribute should be stored in the
+	 *            result matrix
+	 * @return Returns an INDArray consisting of all instances with the shape
+	 *         (number instances x number attributes)
+	 */
+	public static INDArray wekaInstancesToINDArray(final Instances instances, final boolean keepClass) {
+		if (instances == null || instances.size() == 0)
+			throw new IllegalArgumentException("Instances must not be null or empty!");
 
-        int classSub = keepClass ? 0 : (instances.classIndex() > -1 ? 1 : 0);
-        int numAttributes = instances.numAttributes() - classSub;
-        int numInstances = instances.numInstances();
+		int classSub = keepClass ? 0 : (instances.classIndex() > -1 ? 1 : 0);
+		int numAttributes = instances.numAttributes() - classSub;
+		int numInstances = instances.numInstances();
 
-        INDArray result = Nd4j.create(numInstances, numAttributes);
+		INDArray result = Nd4j.create(numInstances, numAttributes);
 
-        for (int i = 0; i < numInstances; i++) {
-            double[] instValues = instances.get(i).toDoubleArray();
-            for (int j = 0; j < numAttributes; j++) {
-                result.putScalar(new int[] { i, j }, instValues[j]);
-            }
-        }
+		for (int i = 0; i < numInstances; i++) {
+			double[] instValues = instances.get(i).toDoubleArray();
+			for (int j = 0; j < numAttributes; j++) {
+				result.putScalar(new int[] { i, j }, instValues[j]);
+			}
+		}
 
-        return result;
-    }
+		return result;
+	}
 
-    /**
-     * Converts a given {@link TimeSeriesDataset} object to a Weka Instances object.
-     * Works with {@link CategoricalAttributeType} target values.
-     * 
-     * @param dataSet Data set which is transformed
-     * @return Transformed Weka Instances object
-     */
-    // TODO: Include meta information
-    public static Instances timeSeriesDatasetToWekaInstances(final TimeSeriesDataset dataSet) {
+	/**
+	 * Converts a given {@link TimeSeriesDataset} object to a Weka Instances object.
+	 * Works with {@link CategoricalAttributeType} target values.
+	 * 
+	 * @param dataSet
+	 *            Data set which is transformed
+	 * @return Transformed Weka Instances object
+	 */
+	// TODO: Include meta information
+	public static Instances timeSeriesDatasetToWekaInstances(final TimeSeriesDataset dataSet) {
 
-        // TODO: Integrate direct access in TimeSeriesDataset
-        List<INDArray> matrices = new ArrayList<>();
-        for (int i = 0; i < dataSet.getNumberOfVariables(); i++)
-            matrices.add(dataSet.getValues(i));
+		// TODO: Integrate direct access in TimeSeriesDataset
+		List<INDArray> matrices = new ArrayList<>();
+		for (int i = 0; i < dataSet.getNumberOfVariables(); i++)
+			matrices.add(dataSet.getValues(i));
 
-        // Create attributes
-        final ArrayList<Attribute> attributes = new ArrayList<>();
-        for (int m = 0; m < matrices.size(); m++) {
-            INDArray matrix = matrices.get(m);
-            for (int i = 0; i < matrix.shape()[1]; i++) {
-                final Attribute newAtt = new Attribute(String.format("val_%d_%d", m, i));
-                attributes.add(newAtt);
-            }
-        }
+		// Create attributes
+		final ArrayList<Attribute> attributes = new ArrayList<>();
+		for (int m = 0; m < matrices.size(); m++) {
+			INDArray matrix = matrices.get(m);
+			for (int i = 0; i < matrix.shape()[1]; i++) {
+				final Attribute newAtt = new Attribute(String.format("val_%d_%d", m, i));
+				attributes.add(newAtt);
+			}
+		}
 
-        // Add class attribute
-        final INDArray targets = dataSet.getTargets();
-        attributes.add(new Attribute("class",
-                IntStream.rangeClosed((int) targets.minNumber().longValue(), (int) targets.maxNumber().longValue())
-                        .boxed().map(i -> String.valueOf(i)).collect(Collectors.toList())));
-        final Instances result = new Instances("Instances", attributes, (int) dataSet.getNumberOfInstances());
-        result.setClassIndex(result.numAttributes() - 1);
+		// Add class attribute
+		final INDArray targets = dataSet.getTargets();
+		attributes.add(new Attribute("class",
+				IntStream.rangeClosed((int) targets.minNumber().longValue(), (int) targets.maxNumber().longValue())
+						.boxed().map(i -> String.valueOf(i)).collect(Collectors.toList())));
+		final Instances result = new Instances("Instances", attributes, (int) dataSet.getNumberOfInstances());
+		result.setClassIndex(result.numAttributes() - 1);
 
-        // Concatenate multiple matrices if series is multivariate
-        INDArray combinedMatrix = hstackINDArrays(matrices);
+		// Concatenate multiple matrices if series is multivariate
+		INDArray combinedMatrix = hstackINDArrays(matrices);
 
-        // Create instances
-        for (int i = 0; i < dataSet.getNumberOfInstances(); i++) {
+		// Create instances
+		for (int i = 0; i < dataSet.getNumberOfInstances(); i++) {
 
-            // Initialize instance
-            final Instance inst = new DenseInstance(1, Nd4j.hstack(Nd4j.toFlattened(combinedMatrix.getRow(i)),
-                    Nd4j.create(new double[] { targets.getDouble(i) })).toDoubleVector());
+			// Initialize instance
+			final Instance inst = new DenseInstance(1, Nd4j.hstack(Nd4j.toFlattened(combinedMatrix.getRow(i)),
+					Nd4j.create(new double[] { targets.getDouble(i) })).toDoubleVector());
 
-            inst.setDataset(result);
-            result.add(inst);
-        }
+			inst.setDataset(result);
+			result.add(inst);
+		}
 
-        return result;
-    }
+		return result;
+	}
 
 	/**
 	 * Converts a given simplified {@link jaicore.ml.tsc.dataset.TimeSeriesDataset}
@@ -244,11 +249,12 @@ public class WekaUtil {
 
 		final int[] targets = dataSet.getTargets();
 		List<Integer> targetList = Arrays.asList(ArrayUtils.toObject(targets));
+
 		int min = Collections.min(targetList);
 		int max = Collections.max(targetList);
 		List<String> classValues = IntStream.rangeClosed(min, max).boxed().map(i -> String.valueOf(i))
 				.collect(Collectors.toList());
-		
+
 		return simplifiedTimeSeriesDatasetToWekaInstances(dataSet, classValues);
 	}
 
@@ -284,7 +290,7 @@ public class WekaUtil {
 
 		// Add class attribute
 		final int[] targets = dataSet.getTargets();
-		attributes.add(new Attribute("class",classValues));
+		attributes.add(new Attribute("class", classValues));
 		final Instances result = new Instances("Instances", attributes, (int) dataSet.getNumberOfInstances());
 		result.setClassIndex(result.numAttributes() - 1);
 
@@ -295,7 +301,7 @@ public class WekaUtil {
 			for (int j = 1; j < matrices.size(); j++) {
 				concatenatedRow = ArrayUtils.addAll(concatenatedRow, matrices.get(j)[i]);
 			}
-			
+
 			concatenatedRow = ArrayUtils.addAll(concatenatedRow, targets[i]);
 
 			// Initialize instance
@@ -307,47 +313,47 @@ public class WekaUtil {
 		return result;
 	}
 
-    /**
-     * Converts an INDArray matrix (number of instances x number of attributes) to
-     * Weka instances without any class attribute.
-     * 
-     * @param matrix INDArray matrix storing all the attribute values of the
-     *               instances
-     * @return Returns the Weka Instances object consisting of all instances and the
-     *         attribute values
-     */
-    public static Instances indArrayToWekaInstances(final INDArray matrix) {
-        if (matrix == null || matrix.length() == 0) {
-            throw new IllegalArgumentException("Matrix must not be null or empty!");
-        }
-        if (matrix.shape().length != 2)
-            throw new IllegalArgumentException(String.format(
-                    "Parameter matrix must be a matrix with 2 axis (instances x attributes). Actual shape: (%s)",
-                    Arrays.toString(matrix.shape())));
+	/**
+	 * Converts an INDArray matrix (number of instances x number of attributes) to
+	 * Weka instances without any class attribute.
+	 * 
+	 * @param matrix
+	 *            INDArray matrix storing all the attribute values of the instances
+	 * @return Returns the Weka Instances object consisting of all instances and the
+	 *         attribute values
+	 */
+	public static Instances indArrayToWekaInstances(final INDArray matrix) {
+		if (matrix == null || matrix.length() == 0) {
+			throw new IllegalArgumentException("Matrix must not be null or empty!");
+		}
+		if (matrix.shape().length != 2)
+			throw new IllegalArgumentException(String.format(
+					"Parameter matrix must be a matrix with 2 axis (instances x attributes). Actual shape: (%s)",
+					Arrays.toString(matrix.shape())));
 
-        final int numInstances = (int) matrix.shape()[0];
-        final int numAttributes = (int) matrix.shape()[1];
+		final int numInstances = (int) matrix.shape()[0];
+		final int numAttributes = (int) matrix.shape()[1];
 
-        // Create attributes
-        final ArrayList<Attribute> attributes = new ArrayList<>();
-        for (int i = 0; i < numAttributes; i++) {
-            final Attribute newAtt = new Attribute("val" + i);
-            attributes.add(newAtt);
-        }
+		// Create attributes
+		final ArrayList<Attribute> attributes = new ArrayList<>();
+		for (int i = 0; i < numAttributes; i++) {
+			final Attribute newAtt = new Attribute("val" + i);
+			attributes.add(newAtt);
+		}
 
-        final Instances result = new Instances("Instances", attributes, numInstances);
+		final Instances result = new Instances("Instances", attributes, numInstances);
 
-        for (int i = 0; i < numInstances; i++) {
+		for (int i = 0; i < numInstances; i++) {
 
-            // Initialize instance
-            final Instance inst = new DenseInstance(1, Nd4j.toFlattened(matrix.getRow(i)).toDoubleVector());
-            inst.setDataset(result);
+			// Initialize instance
+			final Instance inst = new DenseInstance(1, Nd4j.toFlattened(matrix.getRow(i)).toDoubleVector());
+			inst.setDataset(result);
 
-            result.add(inst);
-        }
+			result.add(inst);
+		}
 
-        return result;
-    }
+		return result;
+	}
 
 	/**
 	 * Converts a double[][] matrix (number of instances x number of attributes) to
