@@ -336,7 +336,6 @@ public class SimplifiedTimeSeriesLoader {
 
 			// count remaining characters
 			while (readChars != -1) {
-				System.out.println(readChars);
 				for (int i = 0; i < readChars; ++i) {
 					if (c[i] == '\n') {
 						++count;
