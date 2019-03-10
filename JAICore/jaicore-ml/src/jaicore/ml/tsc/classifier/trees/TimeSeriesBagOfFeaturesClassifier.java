@@ -29,7 +29,8 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 	private RandomForest finalClf;
 	private int numBins;
 	private int numClasses;
-	private int[][][] subsequences;
+	private int[][][] intervals;
+	private int[][] subseries;
 
 	public TimeSeriesBagOfFeaturesClassifier(final int seed, final int numBins, final int numFolds, final double zProp,
 			final int minIntervalLength) {
@@ -40,18 +41,28 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 	public Integer predict(double[] univInstance) throws PredictionException {
 		// TODO Auto-generated method stub
 
-		// Generate features and interval instances
-		double[][] intervalFeatures = new double[subsequences.length][subsequences[0].length * 3];
+		// univInstance = TimeSeriesUtil.zNormalize(univInstance, true);
 
-		for (int i = 0; i < subsequences.length; i++) {
-			for (int j = 0; j < subsequences[i].length; j++) {
-				double[] tmpFeatures = TimeSeriesFeature.getFeatures(univInstance, subsequences[i][j][0],
-						subsequences[i][j][1] - 1, false);
+		// Generate features and interval instances
+		double[][] intervalFeatures = new double[intervals.length][(intervals[0].length + 1) * 3 + 2];
+
+		for (int i = 0; i < intervals.length; i++) {
+			for (int j = 0; j < intervals[i].length; j++) {
+				double[] tmpFeatures = TimeSeriesFeature.getFeatures(univInstance, intervals[i][j][0],
+						intervals[i][j][1] - 1, TimeSeriesBagOfFeaturesAlgorithm.USE_BIAS_CORRECTION);
 
 				intervalFeatures[i][j * 3] = tmpFeatures[0];
-				intervalFeatures[i][j * 3 + 1] = tmpFeatures[1];
+				intervalFeatures[i][j * 3 + 1] = tmpFeatures[1] * tmpFeatures[1];
 				intervalFeatures[i][j * 3 + 2] = tmpFeatures[2];
 			}
+			double[] subseriesFeatures = TimeSeriesFeature.getFeatures(univInstance, this.subseries[i][0],
+					this.subseries[i][1] - 1, TimeSeriesBagOfFeaturesAlgorithm.USE_BIAS_CORRECTION);
+			intervalFeatures[i][intervals[i].length * 3] = subseriesFeatures[0];
+			intervalFeatures[i][intervals[i].length * 3 + 1] = subseriesFeatures[1] * subseriesFeatures[1];
+			intervalFeatures[i][intervals[i].length * 3 + 2] = subseriesFeatures[2];
+
+			intervalFeatures[i][intervalFeatures[i].length - 2] = this.subseries[i][0];
+			intervalFeatures[i][intervalFeatures[i].length - 1] = this.subseries[i][1];
 		}
 
 		ArrayList<double[][]> subseriesValueMatrices = new ArrayList<>();
@@ -94,7 +105,8 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 
 		try {
 			int pred = (int) this.finalClf.classifyInstance(finalInstances.firstInstance());
-			LOGGER.debug("Prediction for instance {}: {}", finalInstances.firstInstance(), pred);
+			// LOGGER.debug("Prediction for instance {}: {}",
+			// finalInstances.firstInstance(), pred);
 			return pred;
 		} catch (Exception e) {
 			throw new PredictionException("Could not predict instance due to an internal Weka exception.", e);
@@ -184,18 +196,33 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 	}
 
 	/**
-	 * @return the subsequences
+	 * @return the intervals
 	 */
-	public int[][][] getSubsequences() {
-		return subsequences;
+	public int[][][] getIntervals() {
+		return intervals;
 	}
 
 	/**
-	 * @param subsequences
-	 *            the subsequences to set
+	 * @param intervals
+	 *            the intervals to set
 	 */
-	public void setSubsequences(int[][][] subsequences) {
-		this.subsequences = subsequences;
+	public void setIntervals(int[][][] intervals) {
+		this.intervals = intervals;
+	}
+
+	/**
+	 * @return the subseries
+	 */
+	public int[][] getSubseries() {
+		return subseries;
+	}
+
+	/**
+	 * @param subseries
+	 *            the subseries to set
+	 */
+	public void setSubseries(int[][] subseries) {
+		this.subseries = subseries;
 	}
 
 }

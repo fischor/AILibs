@@ -67,6 +67,11 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	 */
 	private static final double EPS = 0.00001;
 
+	/**
+	 * Indicator whether Bessel's correction should in feature generation.
+	 */
+	public static final boolean USE_BIAS_CORRECTION = false;
+
 	private double zProp;
 	private int minIntervalLength;
 
@@ -76,7 +81,14 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		this.seed = seed;
 		this.numBins = numBins;
 		this.numFolds = numFolds;
-		this.zProp = zProp;
+
+		if (this.zProp > 1)
+			this.zProp = 1d;
+		else if (this.zProp < 0d)
+			throw new IllegalArgumentException("Parameter zProp must be higher than 0!");
+		else
+			this.zProp = zProp;
+		
 		this.minIntervalLength = minIntervalLength;
 	}
 
@@ -109,13 +121,15 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		// Standardize each time series to zero mean and unit standard deviation (z
 		// transformation)
 		// TODO: Use unifying implementation
-		for (int i = 0; i < dataset.getNumberOfInstances(); i++) {
-			data[i] = TimeSeriesUtil.zNormalize(data[i], true);
-		}
+		// for (int i = 0; i < dataset.getNumberOfInstances(); i++) {
+		// data[i] = TimeSeriesUtil.zNormalize(data[i], true);
+		// }
 
 		// TODO Subsequences and feature extraction
 		int T = data[0].length; // Time series length
 		int lMin = (int) (this.zProp * T);
+		if (lMin < minIntervalLength)
+			lMin = minIntervalLength;
 
 		int wMin = this.minIntervalLength; // Minimum interval length used for meaningful intervals
 
@@ -128,60 +142,87 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		int r = (int) Math.floor((double) T / (double) wMin); // Number of possible intervals in a time series
 
 		// TODO Generate r-d subsequences with each d intervals and calculate features
-		int[][][] subsequences = new int[r - d][d][2];
+		int[][] subseries = new int[r - d][2];
+		int[][][] intervals = new int[r - d][d][2];
+
 		Random random = new Random(seed);
 		for (int i = 0; i < r - d; i++) {
+			int startIndex = random.nextInt(T - lMin);
+			int subSeqLength = random.nextInt(T - lMin - startIndex) + lMin;
+			
+			// Store subseries borders (also used for feature generation)
+			subseries[i][0] = startIndex;
+			subseries[i][1] = startIndex + subSeqLength + 1; // exclusive
+
+			int intervalLength = (int) ((double) (subseries[i][1] - subseries[i][0]) / ((double) d));
+			LOGGER.debug("Interval length: " + intervalLength);
+			if(intervalLength < minIntervalLength)
+				throw new IllegalStateException("The induced interval length must not be lower than the minimum interval length!");
+			
+			if (intervalLength > minIntervalLength) {
+				// Select random length for interval
+				intervalLength = random.nextInt(intervalLength - minIntervalLength + 1) + minIntervalLength;
+			}
 
 			for (int j = 0; j < d; j++) {
-				int startIndex = random.nextInt(T - lMin);
-				int subSeqLength = random.nextInt(T - lMin - startIndex);
-				subsequences[i][j][0] = startIndex;
-				subsequences[i][j][1] = startIndex + subSeqLength + 1; // exclusive
+				intervals[i][j][0] = subseries[i][0] + j * intervalLength;
+				intervals[i][j][1] = subseries[i][0] + (j + 1) * intervalLength; // exclusive
 			}
 		}
 
 		// Generate features
-		double[][][][] generatedFeatures = new double[data.length][r - d][d][TimeSeriesFeature.NUM_FEATURE_TYPES];
+		double[][][][] generatedFeatures = new double[data.length][r - d][d + 1][TimeSeriesFeature.NUM_FEATURE_TYPES];
 		for (int i = 0; i < data.length; i++) {
 			for (int j = 0; j < r - d; j++) {
 				for (int k = 0; k < d; k++) {
-					generatedFeatures[i][j][k] = TimeSeriesFeature.getFeatures(data[i], subsequences[j][k][0],
-							subsequences[j][k][1] - 1, false);
+					generatedFeatures[i][j][k] = TimeSeriesFeature.getFeatures(data[i], intervals[j][k][0],
+							intervals[j][k][1] - 1, USE_BIAS_CORRECTION);
+					generatedFeatures[i][j][k][1] *= generatedFeatures[i][j][k][1];
 				}
+				generatedFeatures[i][j][d] = TimeSeriesFeature.getFeatures(data[i], subseries[j][0],
+						subseries[j][1] - 1,
+						USE_BIAS_CORRECTION);
+				generatedFeatures[i][j][d][1] *= generatedFeatures[i][j][d][1];
 			}
 		}
 
 		// TODO Generate class probability estimate (CPE) for each instance using a
 		// classifier
-
-		double[][] subSeqValueMatrix = new double[(r - d) * data.length][d * 3];
+		int numFeatures = (d + 1) * 3 + 2;
+		double[][] subSeqValueMatrix = new double[(r - d) * data.length][numFeatures];
 		int[] targetMatrix = new int[(r - d) * data.length];
 
 		for (int i = 0; i < r - d; i++) {
 
 			for (int j = 0; j < data.length; j++) {
-				double[] intervalFeatures = new double[d * 3];
-				for (int k = 0; k < d; k++) {
+				double[] intervalFeatures = new double[numFeatures];
+				for (int k = 0; k < d + 1; k++) {
 					intervalFeatures[k * 3] = generatedFeatures[j][i][k][0];
 					intervalFeatures[k * 3 + 1] = generatedFeatures[j][i][k][1];
 					intervalFeatures[k * 3 + 2] = generatedFeatures[j][i][k][2];
 				}
-				subSeqValueMatrix[i * data.length + j] = intervalFeatures;
+				intervalFeatures[intervalFeatures.length - 2] = subseries[i][0];
+				intervalFeatures[intervalFeatures.length - 1] = subseries[i][1];
 
-				targetMatrix[i * data.length + j] = targets[j];
+				subSeqValueMatrix[j * (r-d) + i] = intervalFeatures;
+
+				targetMatrix[j * (r-d) + i] = targets[j];
 			}
 		}
 
 		// Measure OOB probabilities
+		RandomForest subseriesClf = new RandomForest();
+		subseriesClf.setNumIterations(500);
 		double[][] probs = null;
 		try {
-			probs = measureOOBProbabilitiesUsingCV(subSeqValueMatrix, targetMatrix, (r - d) * data.length, numFolds, C);
+			probs = measureOOBProbabilitiesUsingCV(subSeqValueMatrix, targetMatrix, (r - d) * data.length, numFolds, C, subseriesClf);
 		} catch (TrainingException e1) {
 			throw new AlgorithmException(e1, "Could not measure OOB probabilities using CV.");
 		}
 
 		// Train final subseries classifier
-		RandomForest subseriesClf = new RandomForest();
+		
+		// subseriesClf
 
 		ArrayList<double[][]> finalValueMatrices = new ArrayList<>();
 		finalValueMatrices.add(subSeqValueMatrix);
@@ -209,6 +250,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 		TimeSeriesDataset finalDataset = new TimeSeriesDataset(finalMatrices, targets);
 		RandomForest finalClf = new RandomForest();
+		finalClf.setNumIterations(500);
 		try {
 			WekaUtil.buildWekaClassifierFromSimplifiedTS(finalClf, finalDataset);
 		} catch (TrainingException e) {
@@ -220,7 +262,8 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		this.model.setFinalClf(finalClf);
 		this.model.setNumBins(this.numBins);
 		this.model.setNumClasses(C);
-		this.model.setSubsequences(subsequences);
+		this.model.setIntervals(intervals);
+		this.model.setSubseries(subseries);
 
 		return this.model;
 	}
@@ -250,14 +293,16 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	}
 
 	public static double[][] measureOOBProbabilitiesUsingCV(final double[][] subSeqValueMatrix,
-			final int[] targetMatrix, final int numProbInstances, final int numFolds, final int numClasses)
+			final int[] targetMatrix, final int numProbInstances, final int numFolds, final int numClasses,
+			final RandomForest rf)
 			throws TrainingException {
 
 		double[][] probs = new double[numProbInstances][numClasses];
 		int numTestInstsPerFold = (int) ((double) probs.length / (double) numFolds);
 
 		for (int i = 0; i < numFolds; i++) {
-			RandomForest rf = new RandomForest();
+			// TODO: Check this
+			// RandomForest rf = new RandomForest();
 
 			// Generate training instances for fold
 			Pair<TimeSeriesDataset, TimeSeriesDataset> trainingTestDatasets = TimeSeriesUtil
@@ -292,22 +337,30 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 	public static Pair<int[][][], int[][]> formHistogramsAndRelativeFreqs(final int[][] discretizedProbs,
 			final int[] targets, final int numInstances, final int numClasses, final int numBins) {
-		final int[][][] histograms = new int[numInstances][numClasses][numBins];
+		final int[][][] histograms = new int[numInstances][numClasses - 1][numBins];
 		final int[][] relativeFrequencies = new int[numInstances][numClasses];
+
+		int numEntries = (discretizedProbs.length / numInstances);
 
 		for (int i = 0; i < discretizedProbs.length; i++) {
 			// Index of the instance
 			// int instanceIdx = numInstances == 1 ? 0 : (int) ((double) i / (double)
 			// numInstances);
-			int instanceIdx = (int) (i / (discretizedProbs.length / numInstances));
+			int instanceIdx = (int) (i / numEntries);
 			// int instanceClass = targets[instanceIdx];
-			for (int c = 0; c < numClasses; c++) {
+			for (int c = 0; c < numClasses - 1; c++) {
 				int bin = discretizedProbs[i][c];
 				histograms[instanceIdx][c][bin]++;
 			}
 
 			int predClass = MathUtil.argmax(discretizedProbs[i]);
 			relativeFrequencies[instanceIdx][predClass]++;
+		}
+
+		for (int i = 0; i < relativeFrequencies.length; i++) {
+			for (int j = 0; j < relativeFrequencies[i].length; j++) {
+				relativeFrequencies[i][j] /= numEntries;
+			}
 		}
 
 		return new Pair<int[][][], int[][]>(histograms, relativeFrequencies);
@@ -321,7 +374,10 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		for (int i = 0; i < results.length; i++) {
 			int[] discretizedProbs = new int[probs[i].length];
 			for (int j = 0; j < discretizedProbs.length; j++) {
-				discretizedProbs[j] = (int) ((probs[i][j] - EPS) / steps);
+				if (probs[i][j] == 1)
+					discretizedProbs[j] = numBins - 1;
+				else
+					discretizedProbs[j] = (int) ((probs[i][j]) / steps);
 			}
 			results[i] = discretizedProbs;
 		}
