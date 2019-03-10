@@ -75,8 +75,10 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	private double zProp;
 	private int minIntervalLength;
 
+	private boolean useZNormalization;
+
 	public TimeSeriesBagOfFeaturesAlgorithm(final int seed, final int numBins, final int numFolds, final double zProp,
-			final int minIntervalLength) {
+			final int minIntervalLength, final boolean useZNormalization) {
 		// TODO Auto-generated constructor stub
 		this.seed = seed;
 		this.numBins = numBins;
@@ -90,6 +92,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			this.zProp = zProp;
 		
 		this.minIntervalLength = minIntervalLength;
+		this.useZNormalization = useZNormalization;
 	}
 
 	@Override
@@ -121,9 +124,11 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		// Standardize each time series to zero mean and unit standard deviation (z
 		// transformation)
 		// TODO: Use unifying implementation
-		// for (int i = 0; i < dataset.getNumberOfInstances(); i++) {
-		// data[i] = TimeSeriesUtil.zNormalize(data[i], true);
-		// }
+		if (this.useZNormalization) {
+			for (int i = 0; i < dataset.getNumberOfInstances(); i++) {
+				data[i] = TimeSeriesUtil.zNormalize(data[i], true);
+			}
+		}
 
 		// TODO Subsequences and feature extraction
 		int T = data[0].length; // Time series length
@@ -221,9 +226,6 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		}
 
 		// Train final subseries classifier
-		
-		// subseriesClf
-
 		ArrayList<double[][]> finalValueMatrices = new ArrayList<>();
 		finalValueMatrices.add(subSeqValueMatrix);
 		TimeSeriesDataset finalSubseriesDataset = new TimeSeriesDataset(finalValueMatrices, targetMatrix);
@@ -234,10 +236,8 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 					"Could not train the sub series Random Forest classifier due to an internal Weka exception.");
 		}
 
-		// TODO: Discretize probability and form histogram
+		// Discretize probability and form histogram
 		int[][] discretizedProbs = discretizeProbs(numBins, probs);
-
-		// TODO: Form histogram
 		Pair<int[][][], int[][]> histFreqPair = formHistogramsAndRelativeFreqs(discretizedProbs, targets, data.length,
 				C, numBins);
 		int[][][] histograms = histFreqPair.getX();
@@ -260,7 +260,6 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 		this.model.setSubseriesClf(subseriesClf);
 		this.model.setFinalClf(finalClf);
-		this.model.setNumBins(this.numBins);
 		this.model.setNumClasses(C);
 		this.model.setIntervals(intervals);
 		this.model.setSubseries(subseries);
