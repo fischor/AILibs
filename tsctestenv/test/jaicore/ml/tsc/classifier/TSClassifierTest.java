@@ -424,10 +424,12 @@ public class TSClassifierTest {
 			throw new EvaluationException("Could not evaluate classifier " + tsRefClassifier.toString(), e);
 		}
 		final long refEvaluationEnd = System.currentTimeMillis();
+		final double refAcc = refEvaluation.pctCorrect() / 100d;
+
 		LOGGER.debug("Finished evaluation of reference classifier. Took {} ms. Accuracy: {}",
-				(refEvaluationEnd - refTimeStart), refEvaluation.pctCorrect());
+				(refEvaluationEnd - refTimeStart), refAcc);
 		result.put("ref_eval_time", (refEvaluationEnd - refTimeStart));
-		result.put("ref_accuracy", refEvaluation.pctCorrect());
+		result.put("ref_accuracy", refAcc);
 	}
 
 	/**
