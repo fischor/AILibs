@@ -1,6 +1,5 @@
 package jaicore.ml.tsc.classifier.trees;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -63,23 +62,34 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	private TimeOut timeout = new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS);
 
 	/**
-	 * Epsilon delta used for possibly imprecise double operations.
-	 */
-	private static final double EPS = 0.00001;
-
-	/**
 	 * Indicator whether Bessel's correction should in feature generation.
 	 */
 	public static final boolean USE_BIAS_CORRECTION = false;
 
+	/**
+	 * Proportion of the total time series length to be used for the subseries
+	 * generation.
+	 */
 	private double zProp;
+
+	/**
+	 * The minimal interval length used for the interval generation.
+	 */
 	private int minIntervalLength;
 
+	/**
+	 * Indicator whether the z transformation should be used for the instances at
+	 * training and prediction time.
+	 */
 	private boolean useZNormalization;
+
+	/**
+	 * Number of trees used in the internal Random Forest classifier.
+	 */
+	private static final int NUM_TREES_IN_FOREST = 500;
 
 	public TimeSeriesBagOfFeaturesAlgorithm(final int seed, final int numBins, final int numFolds, final double zProp,
 			final int minIntervalLength, final boolean useZNormalization) {
-		// TODO Auto-generated constructor stub
 		this.seed = seed;
 		this.numBins = numBins;
 		this.numFolds = numFolds;
@@ -98,7 +108,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	@Override
 	public TimeSeriesBagOfFeaturesClassifier call()
 			throws InterruptedException, AlgorithmExecutionCanceledException, TimeoutException, AlgorithmException {
-		// TODO Training procedure
+		// Training procedure
 
 		TimeSeriesDataset dataset = this.getInput();
 		if (dataset == null || dataset.isEmpty())
@@ -130,23 +140,25 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			}
 		}
 
-		// TODO Subsequences and feature extraction
+		// Specify parameters used for subseries and interval generation
 		int T = data[0].length; // Time series length
-		int lMin = (int) (this.zProp * T);
+		int lMin = (int) (this.zProp * T); // Minimum subsequence length
 		if (lMin < minIntervalLength)
 			lMin = minIntervalLength;
 
-		int wMin = this.minIntervalLength; // Minimum interval length used for meaningful intervals
+		// int wMin = this.minIntervalLength; // Minimum interval length used for
+		// meaningful intervals
 
-		if (lMin >= T - wMin)
-			lMin -= wMin;
+		if (lMin >= T - this.minIntervalLength)
+			lMin -= this.minIntervalLength;
 
-		int d = lMin > wMin ? (int) Math.floor((double) lMin / (double) wMin) : 1; // Number of intervals for each
-																					// subsequence
+		// Number of intervals for each subsequence
+		int d = lMin > this.minIntervalLength ? (int) Math.floor((double) lMin / (double) this.minIntervalLength) : 1;
 
-		int r = (int) Math.floor((double) T / (double) wMin); // Number of possible intervals in a time series
+		// Number of possible intervals in a time series
+		int r = (int) Math.floor((double) T / (double) this.minIntervalLength);
 
-		// TODO Generate r-d subsequences with each d intervals and calculate features
+		// Generate r-d subsequences with each d intervals and calculate features
 		int[][] subseries = new int[r - d][2];
 		int[][][] intervals = new int[r - d][d][2];
 
@@ -191,7 +203,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			}
 		}
 
-		// TODO Generate class probability estimate (CPE) for each instance using a
+		// Generate class probability estimate (CPE) for each instance using a
 		// classifier
 		int numFeatures = (d + 1) * 3 + 2;
 		double[][] subSeqValueMatrix = new double[(r - d) * data.length][numFeatures];
@@ -217,7 +229,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 
 		// Measure OOB probabilities
 		RandomForest subseriesClf = new RandomForest();
-		subseriesClf.setNumIterations(500);
+		subseriesClf.setNumIterations(NUM_TREES_IN_FOREST);
 		double[][] probs = null;
 		try {
 			probs = measureOOBProbabilitiesUsingCV(subSeqValueMatrix, targetMatrix, (r - d) * data.length, numFolds, C, subseriesClf);
@@ -226,11 +238,9 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		}
 
 		// Train final subseries classifier
-		ArrayList<double[][]> finalValueMatrices = new ArrayList<>();
-		finalValueMatrices.add(subSeqValueMatrix);
-		TimeSeriesDataset finalSubseriesDataset = new TimeSeriesDataset(finalValueMatrices, targetMatrix);
 		try {
-			WekaUtil.buildWekaClassifierFromSimplifiedTS(subseriesClf, finalSubseriesDataset);
+			WekaUtil.buildWekaClassifierFromSimplifiedTS(subseriesClf,
+					TimeSeriesUtil.createDatasetForMatrix(targetMatrix, subSeqValueMatrix));
 		} catch (TrainingException e) {
 			throw new AlgorithmException(e,
 					"Could not train the sub series Random Forest classifier due to an internal Weka exception.");
@@ -243,21 +253,19 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		int[][][] histograms = histFreqPair.getX();
 		int[][] relativeFrequencies = histFreqPair.getY();
 
-		// TODO: Build final classifier
+		// Build final classifier
 		double[][] finalInstances = generateHistogramInstances(histograms, relativeFrequencies);
-		ArrayList<double[][]> finalMatrices = new ArrayList<>();
-		finalMatrices.add(finalInstances);
-
-		TimeSeriesDataset finalDataset = new TimeSeriesDataset(finalMatrices, targets);
 		RandomForest finalClf = new RandomForest();
-		finalClf.setNumIterations(500);
+		finalClf.setNumIterations(NUM_TREES_IN_FOREST);
 		try {
-			WekaUtil.buildWekaClassifierFromSimplifiedTS(finalClf, finalDataset);
+			WekaUtil.buildWekaClassifierFromSimplifiedTS(finalClf,
+					TimeSeriesUtil.createDatasetForMatrix(targets, finalInstances));
 		} catch (TrainingException e) {
 			throw new AlgorithmException(e,
 					"Could not train the final Random Forest classifier due to an internal Weka exception.");
 		}
 
+		// Update model
 		this.model.setSubseriesClf(subseriesClf);
 		this.model.setFinalClf(finalClf);
 		this.model.setNumClasses(C);
@@ -291,6 +299,31 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		return results;
 	}
 
+	/**
+	 * Function measuring the out-of-bag (OOB) probabilities using a cross
+	 * validation with <code>numFolds</code> many folds. For each fold, the data
+	 * given by <code>subSeqValueMatrix</code> is split into a training and test
+	 * set. The test set's probabilities are then derived by a trained Random Forest
+	 * classifier.
+	 * 
+	 * @param subSeqValueMatrix
+	 *            Input data used to derive the OOB probabilities
+	 * @param targetMatrix
+	 *            The target values of the input data
+	 * @param numProbInstances
+	 *            Number of instances for which the probabilities should be derived
+	 * @param numFolds
+	 *            Number of folds used for the measurement
+	 * @param numClasses
+	 *            Number of total classes
+	 * @param rf
+	 *            Random Forest classifier which is retrained in each fold
+	 * @return Returns a matrix storing the probability for each input instance
+	 *         given by <code>subSeqValueMatrix</code>
+	 * @throws TrainingException
+	 *             Thrown when the classifier <code>rf</code> could not be trained
+	 *             in any fold
+	 */
 	public static double[][] measureOOBProbabilitiesUsingCV(final double[][] subSeqValueMatrix,
 			final int[] targetMatrix, final int numProbInstances, final int numFolds, final int numClasses,
 			final RandomForest rf)
@@ -300,9 +333,6 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		int numTestInstsPerFold = (int) ((double) probs.length / (double) numFolds);
 
 		for (int i = 0; i < numFolds; i++) {
-			// TODO: Check this
-			// RandomForest rf = new RandomForest();
-
 			// Generate training instances for fold
 			Pair<TimeSeriesDataset, TimeSeriesDataset> trainingTestDatasets = TimeSeriesUtil
 					.getTrainingAndTestDataForFold(i, numFolds, numTestInstsPerFold, numClasses, subSeqValueMatrix,
@@ -334,28 +364,63 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		return probs;
 	}
 
+	/**
+	 * Function calculating the histograms as described in the paper's section 2.2
+	 * ("Codebook and Learning"). All probabilities rows belonging to one instance
+	 * are aggregated by evaluating the discretized probabilities
+	 * <code>discretizedProbs</code>. Furthermore, the relative frequencies of the
+	 * classes are collected. As the result, a pair of the generated histograms for
+	 * all instances and the corresponding normalized relative class frequencies is
+	 * returned.
+	 * 
+	 * @param discretizedProbs
+	 *            The discretized (binned) probabilities of all instance's subseries
+	 *            rows (the number of rows must be divisible by the number of total
+	 *            instances)
+	 * @param targets
+	 *            The targets corresponding to the discretized probabilities
+	 * @param numInstances
+	 *            The total number of instances (must be <= the number of rows in
+	 *            <code>discretizedProbs</code>
+	 * @param numClasses
+	 *            The total number of classes
+	 * @param numBins
+	 *            The number of bins using within the discretization
+	 * @return Returns a pair of the histograms per instance
+	 *         (<code>numInstances</code> in total) and the corresponding relative
+	 *         frequencies (normalized)
+	 */
 	public static Pair<int[][][], int[][]> formHistogramsAndRelativeFreqs(final int[][] discretizedProbs,
 			final int[] targets, final int numInstances, final int numClasses, final int numBins) {
+
+		if (discretizedProbs.length < numInstances)
+			throw new IllegalArgumentException(
+					"The number of discretized probabilities must not be lower than the number of instances!");
+		if (discretizedProbs.length % numInstances != 0)
+			throw new IllegalArgumentException(
+					"The number of discretized probabilities must be divisible by the number of instances!");
+
 		final int[][][] histograms = new int[numInstances][numClasses - 1][numBins];
 		final int[][] relativeFrequencies = new int[numInstances][numClasses];
 
 		int numEntries = (discretizedProbs.length / numInstances);
 
 		for (int i = 0; i < discretizedProbs.length; i++) {
+
 			// Index of the instance
-			// int instanceIdx = numInstances == 1 ? 0 : (int) ((double) i / (double)
-			// numInstances);
 			int instanceIdx = (int) (i / numEntries);
-			// int instanceClass = targets[instanceIdx];
+
 			for (int c = 0; c < numClasses - 1; c++) {
 				int bin = discretizedProbs[i][c];
 				histograms[instanceIdx][c][bin]++;
 			}
 
+			// Select predicted class
 			int predClass = MathUtil.argmax(discretizedProbs[i]);
 			relativeFrequencies[instanceIdx][predClass]++;
 		}
 
+		// Normalize the relative frequencies
 		for (int i = 0; i < relativeFrequencies.length; i++) {
 			for (int j = 0; j < relativeFrequencies[i].length; j++) {
 				relativeFrequencies[i][j] /= numEntries;
@@ -365,6 +430,20 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		return new Pair<int[][][], int[][]>(histograms, relativeFrequencies);
 	}
 
+	/**
+	 * Function discretizing probabilities into bins. The bins are determined by
+	 * steps of 1 / <code>numBins</code>. The result is a matrix with the same
+	 * dimensionality as <code>probs</code> storing the identifier of the
+	 * corresponding bins.
+	 * 
+	 * @param numBins
+	 *            Number of bins, determines the probability steps for each bin
+	 * @param probs
+	 *            Matrix storing the probabilities of each row for each class
+	 *            (columns)
+	 * @return Returns a matrix sharing the dimensionality of <code>probs</code>
+	 *         with the discrete bin identifier
+	 */
 	public static int[][] discretizeProbs(final int numBins, final double[][] probs) {
 		int[][] results = new int[probs.length][probs[0].length];
 

@@ -92,10 +92,8 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 		}
 
 		// Prepare Weka instances for generated features
-		ArrayList<double[][]> subseriesValueMatrices = new ArrayList<>();
-		subseriesValueMatrices.add(intervalFeatures);
-		TimeSeriesDataset subseriesDataset = new TimeSeriesDataset(subseriesValueMatrices);
-		Instances subseriesInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(subseriesDataset, IntStream
+		Instances subseriesInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(
+				TimeSeriesUtil.createDatasetForMatrix(intervalFeatures), IntStream
 				.rangeClosed(0, this.numClasses - 1).boxed().map(i -> String.valueOf(i)).collect(Collectors.toList()));
 
 		// Predict probabilities using the subseries Random Forest classifier
@@ -122,10 +120,9 @@ public class TimeSeriesBagOfFeaturesClassifier extends ASimplifiedTSClassifier<I
 		// Prepare final Weka instance
 		double[][] finalHistogramInstances = TimeSeriesBagOfFeaturesAlgorithm.generateHistogramInstances(histograms,
 				relativeFrequencies);
-		ArrayList<double[][]> finalMatrices = new ArrayList<>();
-		finalMatrices.add(finalHistogramInstances);
-		TimeSeriesDataset finalDataset = new TimeSeriesDataset(finalMatrices);
-		Instances finalInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(finalDataset, IntStream
+		Instances finalInstances = WekaUtil.simplifiedTimeSeriesDatasetToWekaInstances(
+				TimeSeriesUtil.createDatasetForMatrix(finalHistogramInstances),
+				IntStream
 				.rangeClosed(0, this.numClasses - 1).boxed().map(i -> String.valueOf(i)).collect(Collectors.toList()));
 
 		// Ensure that only on instance has been generated out of the given
