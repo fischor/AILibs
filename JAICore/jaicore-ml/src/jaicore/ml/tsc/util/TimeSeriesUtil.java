@@ -647,4 +647,40 @@ public class TimeSeriesUtil {
 		return new TimeSeriesDataset(testValueMatrices, currTestTargetMatrix);
 	}
 
+	/**
+	 * Function creating a {@link TimeSeriesDataset} object given the
+	 * <code>targets</code> and one or multiple <code>valueMatrices</code>.
+	 * 
+	 * @param targets
+	 *            The target values of the instances
+	 * @param valueMatrices
+	 *            One or more matrices storing the time series values
+	 * @return Returns a {@link TimeSeriesDataset} object constructed out of the
+	 *         given parameters
+	 */
+	public static TimeSeriesDataset createDatasetForMatrix(final int[] targets, final double[][]... valueMatrices) {
+		if (valueMatrices.length == 0)
+			throw new IllegalArgumentException(
+					"There must be at least one value matrix to generate a TimeSeriesDataset object!");
+
+		ArrayList<double[][]> values = new ArrayList<>();
+
+		for (final double[][] matrix : valueMatrices) {
+			values.add(matrix);
+		}
+		return targets == null ? new TimeSeriesDataset(values) : new TimeSeriesDataset(values, targets);
+	}
+
+	/**
+	 * Function creating a {@link TimeSeriesDataset} object given one or multiple
+	 * <code>valueMatrices</code>.
+	 * 
+	 * @param valueMatrices
+	 *            One or more matrices storing the time series values
+	 * @return Returns a {@link TimeSeriesDataset} object constructed out of the
+	 *         given parameters
+	 */
+	public static TimeSeriesDataset createDatasetForMatrix(final double[][]... valueMatrices) {
+		return createDatasetForMatrix(null, valueMatrices);
+	}
 }
