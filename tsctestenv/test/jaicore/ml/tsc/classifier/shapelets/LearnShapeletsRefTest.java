@@ -1,4 +1,4 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.shapelets;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -12,6 +12,8 @@ import org.junit.Test;
 import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
+import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
+import jaicore.ml.tsc.classifier.shapelets.LearnShapeletsClassifier;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import timeseriesweka.classifiers.LearnShapelets;
 

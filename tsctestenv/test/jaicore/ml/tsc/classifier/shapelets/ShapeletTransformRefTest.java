@@ -1,4 +1,4 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.shapelets;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -15,6 +15,8 @@ import jaicore.basic.TimeOut;
 import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
+import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
+import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformTSClassifier;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import jaicore.ml.tsc.quality_measures.FStat;
 import timeseriesweka.classifiers.ShapeletTransformClassifier;

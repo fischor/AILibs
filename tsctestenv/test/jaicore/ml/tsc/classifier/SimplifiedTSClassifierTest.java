@@ -15,6 +15,8 @@ import jaicore.basic.sets.SetUtil.Pair;
 import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
+import jaicore.ml.tsc.classifier.shapelets.LearnShapeletsClassifier;
+import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformTSClassifier;
 import jaicore.ml.tsc.classifier.trees.TimeSeriesForestClassifier;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
@@ -104,10 +106,8 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 
 		trainAndEvaluateClassifier(tsClassifier, seed, tsClassifierParams, result, train, test);
 
-		// TODO: Uncomment me
 		// Test reference classifier
-		// compareRefClassifiers(tsRefClassifier, seed, tsRefClassifierParams, result,
-		// trainingArffFile, testArffFile);
+		compareRefClassifiers(tsRefClassifier, seed, tsRefClassifierParams, result, trainingArffFile, testArffFile);
 
 		return result;
 	}
@@ -239,13 +239,13 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 					correct++;
 			}
 		} else if (predictions.get(0) instanceof String) {
-			for (int i = 0; i < totalPreds; i++) {
+			// for (int i = 0; i < totalPreds; i++) {
 				// String prediction = (String) predictions.get(i);
 				// TODO: Add mapper
 				throw new UnsupportedOperationException("Not implemented yet.");
 				// if (prediction.equals(test.getTargets()[i]))
 				// correct++;
-			}
+			// }
 		}
 
 		double accuracy = (double) correct / totalPreds;

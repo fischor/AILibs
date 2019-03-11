@@ -1,4 +1,4 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.shapelets;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -10,6 +10,7 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformAlgorithm;
 import jaicore.ml.tsc.shapelets.Shapelet;
 import jaicore.ml.tsc.util.MathUtil;
 import jaicore.ml.tsc.util.TimeSeriesUtil;

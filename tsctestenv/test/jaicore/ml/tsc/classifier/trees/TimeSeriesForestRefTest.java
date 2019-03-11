@@ -1,4 +1,4 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.trees;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -13,6 +13,7 @@ import jaicore.basic.TimeOut;
 import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
+import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
 import jaicore.ml.tsc.classifier.trees.TimeSeriesForestClassifier;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import timeseriesweka.classifiers.TSF;

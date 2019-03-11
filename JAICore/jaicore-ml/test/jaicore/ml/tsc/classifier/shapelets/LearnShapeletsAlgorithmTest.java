@@ -1,7 +1,8 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.shapelets;
 
 import org.junit.Test;
 
+import jaicore.ml.tsc.classifier.shapelets.LearnShapeletsAlgorithm;
 import jaicore.ml.tsc.util.MathUtil;
 import junit.framework.Assert;
 

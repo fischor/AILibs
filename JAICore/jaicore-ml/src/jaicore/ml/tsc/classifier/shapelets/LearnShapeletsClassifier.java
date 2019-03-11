@@ -1,4 +1,4 @@
-package jaicore.ml.tsc.classifier;
+package jaicore.ml.tsc.classifier.shapelets;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import jaicore.basic.TimeOut;
 import jaicore.ml.core.exception.PredictionException;
+import jaicore.ml.tsc.classifier.ASimplifiedTSClassifier;
 import jaicore.ml.tsc.util.MathUtil;
 import jaicore.ml.tsc.util.TimeSeriesUtil;
 
