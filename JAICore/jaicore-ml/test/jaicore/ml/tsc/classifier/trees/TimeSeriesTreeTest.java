@@ -33,6 +33,10 @@ import junit.framework.Assert;
  */
 @SuppressWarnings("unused")
 public class TimeSeriesTreeTest {
+
+	/**
+	 * Maximal delta for asserts with precision.
+	 */
 	private static final double EPS_DELTA = 0.000001;
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesTreeTest.class);

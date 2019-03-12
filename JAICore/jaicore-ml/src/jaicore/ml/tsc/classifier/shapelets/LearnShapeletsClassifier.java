@@ -18,7 +18,9 @@ import jaicore.ml.tsc.util.TimeSeriesUtil;
 /**
  * <code>LearnShapeletsClassifier</code> published in "J. Grabocka, N.
  * Schilling, M. Wistuba, L. Schmidt-Thieme: Learning Time-Series Shapelets"
- * (https://www.ismll.uni-hildesheim.de/pub/pdfs/grabocka2014e-kdd.pdf)
+ * (https://www.ismll.uni-hildesheim.de/pub/pdfs/grabocka2014e-kdd.pdf).
+ * 
+ * This classifier only supports univariate time series prediction.
  * 
  * @author Julian Lienen
  *

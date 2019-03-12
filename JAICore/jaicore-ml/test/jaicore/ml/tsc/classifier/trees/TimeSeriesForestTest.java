@@ -24,6 +24,10 @@ import jaicore.ml.tsc.util.SimplifiedTimeSeriesLoader;
  */
 @SuppressWarnings("unused")
 public class TimeSeriesForestTest {
+
+	/**
+	 * Maximal delta for asserts with precision.
+	 */
 	private static final double EPS_DELTA = 0.000001;
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesTreeTest.class);

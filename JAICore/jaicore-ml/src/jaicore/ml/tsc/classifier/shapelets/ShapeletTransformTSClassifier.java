@@ -31,6 +31,8 @@ import weka.core.Instances;
  * to the feature dimension's shapelet. An ensemble classifier trained on the
  * derived representation is then used for prediction.
  * 
+ * This classifier only supports univariate time series prediction.
+ * 
  * @author Julian Lienen
  *
  */

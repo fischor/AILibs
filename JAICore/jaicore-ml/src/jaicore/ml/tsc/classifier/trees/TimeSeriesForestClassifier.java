@@ -18,6 +18,8 @@ import jaicore.ml.tsc.util.TimeSeriesUtil;
  * Series Forest for Classification and Feature Extraction.” Inf. Sci. 239
  * (2013): 142-153. Consists of mutliple {@link TimeSeriesTree} classifier.
  * 
+ * This classifier only supports univariate time series prediction.
+ * 
  * @author Julian Lienen
  *
  */

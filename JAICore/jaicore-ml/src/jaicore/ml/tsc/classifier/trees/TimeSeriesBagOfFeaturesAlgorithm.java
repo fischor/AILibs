@@ -27,6 +27,16 @@ import jaicore.ml.tsc.util.WekaUtil;
 import weka.classifiers.trees.RandomForest;
 import weka.core.Instances;
 
+/**
+ * Algorithm to train a Time Series Bag-of-Features (TSBF) classifier as
+ * described in Baydogan, Mustafa & Runger, George & Tuv, Eugene. (2013). A
+ * Bag-of-Features Framework to Classify Time Series. IEEE Transactions on
+ * Pattern Analysis and Machine Intelligence. 35. 2796-802.
+ * 10.1109/TPAMI.2013.72.
+ * 
+ * @author Julian Lienen
+ *
+ */
 public class TimeSeriesBagOfFeaturesAlgorithm
 		extends ASimplifiedTSCAlgorithm<Integer, TimeSeriesBagOfFeaturesClassifier> {
 
@@ -88,6 +98,23 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 	 */
 	private static final int NUM_TREES_IN_FOREST = 500;
 
+	/**
+	 * Constructor for a TSBF training algorithm.
+	 * 
+	 * @param seed
+	 *            Seed used for randomized operations
+	 * @param numBins
+	 *            Number of bins used for the histogram generation
+	 * @param numFolds
+	 *            Number of folds for the internal OOB probability CV estimation
+	 * @param zProp
+	 *            Proportion of the total time series length to be used for the
+	 *            subseries generation
+	 * @param minIntervalLength
+	 *            The minimal interval length used for the interval generation
+	 * @param useZNormalization
+	 *            Indicator whether the Z normalization should be used
+	 */
 	public TimeSeriesBagOfFeaturesAlgorithm(final int seed, final int numBins, final int numFolds, final double zProp,
 			final int minIntervalLength, final boolean useZNormalization) {
 		this.seed = seed;
@@ -105,6 +132,10 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		this.useZNormalization = useZNormalization;
 	}
 
+	/**
+	 * Training procedure construction a Time Series Bag-of-Features (TSBF)
+	 * classifier using the given input data.
+	 */
 	@Override
 	public TimeSeriesBagOfFeaturesClassifier call()
 			throws InterruptedException, AlgorithmExecutionCanceledException, TimeoutException, AlgorithmException {
@@ -140,68 +171,31 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			}
 		}
 
-		// Specify parameters used for subseries and interval generation
+		// Specify parameters used for subsequence and interval generation
 		int T = data[0].length; // Time series length
 		int lMin = (int) (this.zProp * T); // Minimum subsequence length
+
+		// Check lower bound for minimum subsequence length
 		if (lMin < minIntervalLength)
 			lMin = minIntervalLength;
 
-		// int wMin = this.minIntervalLength; // Minimum interval length used for
-		// meaningful intervals
-
+		// Check upper bound for minimum subsequence length
 		if (lMin >= T - this.minIntervalLength)
 			lMin -= this.minIntervalLength;
 
 		// Number of intervals for each subsequence
-		int d = lMin > this.minIntervalLength ? (int) Math.floor((double) lMin / (double) this.minIntervalLength) : 1;
+		int d = this.getD(lMin);
 
 		// Number of possible intervals in a time series
-		int r = (int) Math.floor((double) T / (double) this.minIntervalLength);
+		int r = this.getR(T);
 
 		// Generate r-d subsequences with each d intervals and calculate features
-		int[][] subseries = new int[r - d][2];
-		int[][][] intervals = new int[r - d][d][2];
-
-		Random random = new Random(seed);
-		for (int i = 0; i < r - d; i++) {
-			int startIndex = random.nextInt(T - lMin);
-			int subSeqLength = random.nextInt(T - lMin - startIndex) + lMin;
-			
-			// Store subseries borders (also used for feature generation)
-			subseries[i][0] = startIndex;
-			subseries[i][1] = startIndex + subSeqLength + 1; // exclusive
-
-			int intervalLength = (int) ((double) (subseries[i][1] - subseries[i][0]) / ((double) d));
-			LOGGER.debug("Interval length: " + intervalLength);
-			if(intervalLength < minIntervalLength)
-				throw new IllegalStateException("The induced interval length must not be lower than the minimum interval length!");
-			
-			if (intervalLength > minIntervalLength) {
-				// Select random length for interval
-				intervalLength = random.nextInt(intervalLength - minIntervalLength + 1) + minIntervalLength;
-			}
-
-			for (int j = 0; j < d; j++) {
-				intervals[i][j][0] = subseries[i][0] + j * intervalLength;
-				intervals[i][j][1] = subseries[i][0] + (j + 1) * intervalLength; // exclusive
-			}
-		}
+		Pair<int[][], int[][][]> subSeqIntervals = generateSubsequencesAndIntervals(r, d, lMin, T);
+		int[][] subsequences = subSeqIntervals.getX();
+		int[][][] intervals = subSeqIntervals.getY();
 
 		// Generate features
-		double[][][][] generatedFeatures = new double[data.length][r - d][d + 1][TimeSeriesFeature.NUM_FEATURE_TYPES];
-		for (int i = 0; i < data.length; i++) {
-			for (int j = 0; j < r - d; j++) {
-				for (int k = 0; k < d; k++) {
-					generatedFeatures[i][j][k] = TimeSeriesFeature.getFeatures(data[i], intervals[j][k][0],
-							intervals[j][k][1] - 1, USE_BIAS_CORRECTION);
-					generatedFeatures[i][j][k][1] *= generatedFeatures[i][j][k][1];
-				}
-				generatedFeatures[i][j][d] = TimeSeriesFeature.getFeatures(data[i], subseries[j][0],
-						subseries[j][1] - 1,
-						USE_BIAS_CORRECTION);
-				generatedFeatures[i][j][d][1] *= generatedFeatures[i][j][d][1];
-			}
-		}
+		double[][][][] generatedFeatures = generateFeatures(data, subsequences, intervals);
 
 		// Generate class probability estimate (CPE) for each instance using a
 		// classifier
@@ -218,8 +212,8 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 					intervalFeatures[k * 3 + 1] = generatedFeatures[j][i][k][1];
 					intervalFeatures[k * 3 + 2] = generatedFeatures[j][i][k][2];
 				}
-				intervalFeatures[intervalFeatures.length - 2] = subseries[i][0];
-				intervalFeatures[intervalFeatures.length - 1] = subseries[i][1];
+				intervalFeatures[intervalFeatures.length - 2] = subsequences[i][0];
+				intervalFeatures[intervalFeatures.length - 1] = subsequences[i][1];
 
 				subSeqValueMatrix[j * (r-d) + i] = intervalFeatures;
 
@@ -270,11 +264,143 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		this.model.setFinalClf(finalClf);
 		this.model.setNumClasses(C);
 		this.model.setIntervals(intervals);
-		this.model.setSubseries(subseries);
+		this.model.setSubsequences(subsequences);
 
 		return this.model;
 	}
 
+	/**
+	 * Method randomly determining the subsequences and their intervals to be used
+	 * for feature generation of the instances. As a result, a pair of each
+	 * subsequence's start and end index and the intervals' start and end indices is
+	 * returned.
+	 * 
+	 * @param r
+	 *            The number of possible intervals in a time series
+	 * @param d
+	 *            The number of intervals for each subsequence
+	 * @param lMin
+	 *            The minimum subsequence length
+	 * @param T
+	 *            The length of the time series
+	 * @return a pair of each subsequence's start and end index and the intervals'
+	 *         start and end indices
+	 */
+	public Pair<int[][], int[][][]> generateSubsequencesAndIntervals(final int r, final int d, final int lMin,
+			final int T) {
+		int[][] subsequences = new int[r - d][2];
+		int[][][] intervals = new int[r - d][d][2];
+
+		Random random = new Random(seed);
+		for (int i = 0; i < r - d; i++) {
+			int startIndex = random.nextInt(T - lMin);
+			int subSeqLength = random.nextInt(T - lMin - startIndex) + lMin;
+
+			// Store subseries borders (also used for feature generation)
+			subsequences[i][0] = startIndex;
+			subsequences[i][1] = startIndex + subSeqLength + 1; // exclusive
+
+			int intervalLength = (int) ((double) (subsequences[i][1] - subsequences[i][0]) / ((double) d));
+			LOGGER.debug("Interval length: " + intervalLength);
+			if (intervalLength < this.minIntervalLength)
+				throw new IllegalStateException(
+						"The induced interval length must not be lower than the minimum interval length!");
+
+			if (intervalLength > this.minIntervalLength) {
+				// Select random length for interval
+				intervalLength = random.nextInt(intervalLength - this.minIntervalLength + 1) + this.minIntervalLength;
+			}
+
+			for (int j = 0; j < d; j++) {
+				intervals[i][j][0] = subsequences[i][0] + j * intervalLength;
+				intervals[i][j][1] = subsequences[i][0] + (j + 1) * intervalLength; // exclusive
+			}
+		}
+		return new Pair<int[][], int[][][]>(subsequences, intervals);
+	}
+
+	/**
+	 * Function generating the features for the internal probability measurement
+	 * model based on the given <code>subseries</code> and their corresponding
+	 * </code>intervals</code>. The features are built using the
+	 * {@link TimeSeriesFeature} implementation. As a result, a tensor consisting of
+	 * the generated features for each interval in each subsequence for each
+	 * instance is returned (4 dimensions).
+	 * 
+	 * @param data
+	 *            The data used for feature generation
+	 * @param subsequences
+	 *            The subsequences used for feature generation (the start and end
+	 *            [exclusive] index is stored for each subsequence)
+	 * @param intervals
+	 *            The intervals of each subsequence used for the feature generation
+	 *            (the start and end [exclusive] index is stored for each interval)
+	 * @return Returns a tensor consisting of the generated features for each
+	 *         interval in each subsequence for each instance
+	 */
+	public static double[][][][] generateFeatures(final double[][] data, final int[][] subsequences,
+			final int[][][] intervals) {
+
+		double[][][][] generatedFeatures = new double[data.length][subsequences.length][intervals[0].length
+				+ 1][TimeSeriesFeature.NUM_FEATURE_TYPES];
+		for (int i = 0; i < data.length; i++) {
+			for (int j = 0; j < subsequences.length; j++) {
+				for (int k = 0; k < intervals[j].length; k++) {
+					generatedFeatures[i][j][k] = TimeSeriesFeature.getFeatures(data[i], intervals[j][k][0],
+							intervals[j][k][1] - 1, USE_BIAS_CORRECTION);
+					generatedFeatures[i][j][k][1] *= generatedFeatures[i][j][k][1];
+				}
+				generatedFeatures[i][j][intervals[j].length] = TimeSeriesFeature.getFeatures(data[i],
+						subsequences[j][0],
+						subsequences[j][1] - 1,
+						USE_BIAS_CORRECTION);
+				generatedFeatures[i][j][intervals[j].length][1] *= generatedFeatures[i][j][intervals[j].length][1];
+			}
+		}
+		return generatedFeatures;
+	}
+
+	/**
+	 * Method calculating the number of intervals for each subsequence.
+	 * 
+	 * @param lMin
+	 *            The minimum subsequence length
+	 * @return Returns the number of intervals for each subsequence
+	 */
+	private int getD(final int lMin) {
+		return lMin > this.minIntervalLength ? (int) Math.floor((double) lMin / (double) this.minIntervalLength) : 1;
+	}
+
+	/**
+	 * Method returning the number of possible intervals in the time series used for
+	 * subsequences and intervals generation.
+	 * 
+	 * @param T
+	 *            The length of the time series
+	 * @return Returns the number of possible intervals in the time series
+	 */
+	private int getR(final int T) {
+		return (int) Math.floor((double) T / (double) this.minIntervalLength);
+	}
+
+	/**
+	 * Generates a matrix consisting of the histogram values for each instance out
+	 * of the given <code>histograms</code> and the relative frequencies of classes
+	 * for each instance. The histogram values for each instance, class and bin are
+	 * concatenated. Furthermore, the relative frequencies are also added to the
+	 * instance's features.
+	 * 
+	 * @param histograms
+	 *            The histograms for each instance (number of instances x number of
+	 *            classes - 1 x number of bins)
+	 * @param relativeFreqsOfClasses
+	 *            The relative frequencies of the classes for each instance
+	 *            (previously extracted from each subseries instance per origin
+	 *            instance; dimensionality is number of instances x number of
+	 *            classes)
+	 * @return Returns a matrix storing the features for each instance (number of
+	 *         instances x number of features)
+	 */
 	public static double[][] generateHistogramInstances(final int[][][] histograms,
 			final int[][] relativeFreqsOfClasses) {
 		int featureLength = histograms[0].length * histograms[0][0].length + relativeFreqsOfClasses[0].length;

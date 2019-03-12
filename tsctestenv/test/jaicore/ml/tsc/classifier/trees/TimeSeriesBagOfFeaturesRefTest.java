@@ -18,7 +18,6 @@ import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
-import jaicore.ml.tsc.classifier.trees.TimeSeriesBagOfFeaturesClassifier;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import jaicore.ml.tsc.util.ClassMapper;
@@ -168,7 +167,7 @@ public class TimeSeriesBagOfFeaturesRefTest {
 						currBest, numBins, numFolds, zProp, minIntervalLength, seed);
 			}
 			
-			System.out.println(String.format("subSeries = %s.", Arrays.deepToString(ownClf.getSubseries())));
+			System.out.println(String.format("subSeries = %s.", Arrays.deepToString(ownClf.getSubsequences())));
 			System.out.println(String.format("intervals = %s.", Arrays.deepToString(ownClf.getIntervals())));
 			System.out.println(
 					"Ref subseries: "
