@@ -97,9 +97,9 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	private boolean estimateShapeletLengthBorders;
 
 	/**
-	 * The minimum length of shapelets to be considered.
+	 * The minimum length of shapelets to be considered. Defaults to 3.
 	 */
-	private int minShapeletLength;
+	private int minShapeletLength = 3;
 
 	/**
 	 * The maximum length of shapelets to be considered.
@@ -172,7 +172,8 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 * @param minShapeletLength
 	 *            The minimal length of the shapelets
 	 * @param maxShapeletLength
-	 *            The maximal length of the shapelets
+	 *            The maximal length of the shapelets. If set to -1, the number of
+	 *            attributes - 1 is taken as value
 	 * @param useHIVECOTEEnsemble
 	 *            Indicator whether the HIVE COTE ensemble should be used (CAWPE
 	 *            otherwise)
@@ -230,6 +231,9 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 				this.maxShapeletLength = minMax[1];
 				LOGGER.debug("Finished min max estimation. min={}, max={}", this.minShapeletLength,
 						this.maxShapeletLength);
+			} else {
+				if (this.maxShapeletLength == -1)
+					this.maxShapeletLength = dataMatrix[0].length - 1;
 			}
 
 			// Determine shapelets

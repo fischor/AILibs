@@ -14,6 +14,8 @@ import jaicore.basic.TimeOut;
 import jaicore.basic.algorithm.IAlgorithm;
 import jaicore.basic.algorithm.IAlgorithmConfig;
 import jaicore.basic.algorithm.events.AlgorithmEvent;
+import jaicore.basic.algorithm.exceptions.AlgorithmException;
+import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.ASimplifiedTSCAlgorithm;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.util.MathUtil;
@@ -210,14 +212,18 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 	 *            The training matrix used for the initialization of <code>S</code>.
 	 * @return Return the initialized tensor storing an initial guess for the
 	 *         shapelets based on the clustering
+	 * @throws TrainingException
 	 */
-	public double[][][] initializeS(final double[][] trainingMatrix) {
+	public double[][][] initializeS(final double[][] trainingMatrix) throws TrainingException {
 		LOGGER.debug("Initializing S...");
 
 		final double[][][] result = new double[this.scaleR][][];
 
 		for (int r = 0; r < this.scaleR; r++) {
 			final int numberOfSegments = getNumberOfSegments(this.Q, this.minShapeLength, r);
+			if (numberOfSegments < 1)
+				throw new TrainingException(
+						"The number of segments is lower than 1. Can not train the LearnShapelets model.");
 
 			final int L = (r + 1) * this.minShapeLength;
 
@@ -271,9 +277,11 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 
 	/**
 	 * Main function to train a <code>LearnShapeletsClassifier</code>.
+	 * 
+	 * @throws AlgorithmException
 	 */
 	@Override
-	public LearnShapeletsClassifier call() {
+	public LearnShapeletsClassifier call() throws AlgorithmException {
 		// Training
 		long beginTime = System.currentTimeMillis();
 
@@ -321,7 +329,13 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 				learningRate, regularization, scaleR, minShapeLength, maxIter, Q, C);
 
 		// Initialization
-		double[][][] S = initializeS(dataMatrix);
+		double[][][] S;
+		try {
+			S = initializeS(dataMatrix);
+		} catch (TrainingException e) {
+			throw new AlgorithmException(e,
+					"Can not train LearnShapelets model due to error during initialization of S.");
+		}
 		double[][][] S_hist = new double[this.scaleR][][];
 		for (int r = 0; r < this.scaleR; r++) {
 			S_hist[r] = new double[S[r].length][S[r][0].length];
