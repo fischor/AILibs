@@ -72,7 +72,7 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 
 		try {
 			Map<String, Object> results = SimplifiedTSClassifierTest.compareClassifiers(refClassifier, ownClassifier,
-					(int) seed, null, null, new File(datasetPathPrefix + "_TRAIN.arff"),
+					(int) seed, "", "", new File(datasetPathPrefix + "_TRAIN.arff"),
 					new File(datasetPathPrefix + "_TEST.arff"));
 			processor.processResults(results);
 
