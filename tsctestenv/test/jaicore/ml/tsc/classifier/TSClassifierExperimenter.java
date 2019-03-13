@@ -17,6 +17,7 @@ import jaicore.experiments.ExperimentRunner;
 import jaicore.experiments.IExperimentIntermediateResultProcessor;
 import jaicore.experiments.IExperimentSetConfig;
 import jaicore.experiments.IExperimentSetEvaluator;
+import jaicore.ml.experiments.IMultiClassClassificationExperimentConfig;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 
 /**
@@ -35,8 +36,8 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 	/**
 	 * The experiment configuration
 	 */
-	private static final TSClassifierExperimentConfig CONFIG = ConfigCache
-			.getOrCreate(TSClassifierExperimentConfig.class);
+	private static final IMultiClassClassificationExperimentConfig CONFIG = ConfigCache
+			.getOrCreate(LearnShapeletsExperimentConfig.class);
 
 	@Override
 	public IExperimentSetConfig getConfig() {
@@ -57,18 +58,22 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 		LOGGER.info("Load dataset...");
 		String dataset = experiment.get("dataset");
 
+		// Pair<ASimplifiedTSClassifier<Integer>, Object> classifierPair =
+		// SimplifiedTSClassifierTest
+		// .createClassifierPairsWithDefaultParameter(experiment.get("algorithm"), (int)
+		// seed, timeout);
 		Pair<ASimplifiedTSClassifier<Integer>, Object> classifierPair = SimplifiedTSClassifierTest
-				.createClassifierPairsWithDefaultParameter(experiment.get("algorithm"), (int) seed, timeout);
+				.createClassifierPairsWithSpecificParameter(experiment, timeout);
+
 		ASimplifiedTSClassifier<Integer> ownClassifier = classifierPair.getX();
 		Object refClassifier = classifierPair.getY();
 
+		String datasetPathPrefix = CONFIG.getDatasetFolder().getAbsolutePath() + "\\" + dataset + "\\" + dataset;
+
 		try {
 			Map<String, Object> results = SimplifiedTSClassifierTest.compareClassifiers(refClassifier, ownClassifier,
-					(int) seed, null, null,
-					new File(CONFIG.getDatasetFolder().getAbsolutePath() + "\\" + dataset + "\\" + dataset
-							+ "_TRAIN.arff"),
-					new File(CONFIG.getDatasetFolder().getAbsolutePath() + "\\" + dataset + "\\" + dataset
-							+ "_TEST.arff"));
+					(int) seed, null, null, new File(datasetPathPrefix + "_TRAIN.arff"),
+					new File(datasetPathPrefix + "_TEST.arff"));
 			processor.processResults(results);
 
 			LOGGER.info("Evaluation of experiment with id {} finished.", experimentEntry.getId());

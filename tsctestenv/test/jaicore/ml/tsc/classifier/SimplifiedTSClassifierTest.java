@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +18,7 @@ import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.shapelets.LearnShapeletsClassifier;
 import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformTSClassifier;
+import jaicore.ml.tsc.classifier.trees.TimeSeriesBagOfFeaturesClassifier;
 import jaicore.ml.tsc.classifier.trees.TimeSeriesForestClassifier;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
@@ -25,6 +27,7 @@ import jaicore.ml.tsc.util.ClassMapper;
 import jaicore.ml.tsc.util.SimplifiedTimeSeriesLoader;
 import timeseriesweka.classifiers.LearnShapelets;
 import timeseriesweka.classifiers.ShapeletTransformClassifier;
+import timeseriesweka.classifiers.TSBF;
 import timeseriesweka.classifiers.TSF;
 
 /**
@@ -87,8 +90,8 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			throw new IllegalArgumentException("Training and test file must not be null!");
 
 		final Map<String, Object> result = new HashMap<>();
-		result.put("seed", seed);
-		result.put("dataset", reduceFileNames(trainingArffFile, testArffFile));
+		// result.put("seed", seed);
+		// result.put("dataset", reduceFileNames(trainingArffFile, testArffFile));
 
 		// Load dataset
 		// TODO: Deal with strings?
@@ -343,6 +346,142 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 
 			refClassifier = new TSF((int) seed);
 			((TSF) refClassifier).setNumTrees(numTrees);
+			break;
+		case "TimeSeriesBagOfFeatures":
+			int numBins = 10;
+			int numFolds = 10;
+			double zProp = 0.1;
+			int minIntervalLength = 5;
+
+			ownClassifier = new TimeSeriesBagOfFeaturesClassifier((int) seed, numBins, numFolds, zProp,
+					minIntervalLength);
+
+			TSBF refClf = new TSBF();
+			refClf.seedRandom(seed);
+			try {
+				FieldUtils.writeField(refClf, "stepWise", false, true);
+				FieldUtils.writeField(refClf, "numReps", 1, true);
+			} catch (IllegalAccessException e) {
+				throw new IllegalStateException("Cannot test TSBF reference classifier due to parameter set problems.");
+			}
+			refClf.setParamSearch(false);
+			refClf.searchParameters(false);
+
+			refClassifier = refClf;
+
+			break;
+		default:
+			String errorString = String.format("Please specify a valid algorithm. An invalid value was given: %s",
+					algorithm);
+			LOGGER.error(errorString);
+			throw new IllegalArgumentException(errorString);
+		}
+
+		return new Pair<ASimplifiedTSClassifier<Integer>, Object>(ownClassifier, refClassifier);
+	}
+
+	public static Pair<ASimplifiedTSClassifier<Integer>, Object> createClassifierPairsWithSpecificParameter(
+			final Map<String, String> parameters, final TimeOut timeOut) {
+		ASimplifiedTSClassifier<Integer> ownClassifier = null;
+		Object refClassifier = null;
+
+		final int seed = Integer.parseInt(parameters.get("seed"));
+		final String algorithm = parameters.get("algorithm");
+
+		System.out.println(parameters);
+
+		switch (algorithm) {
+		case "ShapeletTransform":
+			int k = Integer.parseInt(parameters.get("st_k"));
+			final int minShapeletLength = Integer.parseInt(parameters.get("st_minShapeletLength"));
+			final int maxShapeletLength = Integer.parseInt(parameters.get("st_maxShapeletLength"));
+
+			refClassifier = new ShapeletTransformClassifier();
+			((ShapeletTransformClassifier) refClassifier).setSeed(seed);
+			((ShapeletTransformClassifier) refClassifier).setNumberOfShapelets(k);
+
+			ownClassifier = new ShapeletTransformTSClassifier(k, new FStat(), (int) seed, false, minShapeletLength,
+					maxShapeletLength, true, timeOut);
+			break;
+
+		case "LearnShapelets":
+			// Initialize classifiers with values selected by reference classifier by
+			// default
+			int K = Integer.parseInt(parameters.get("ls_k"));
+			double learningRate = Double.parseDouble(parameters.get("ls_learningRate"));
+			double regularization = Double.parseDouble(parameters.get("ls_regularization"));
+			int scaleR = Integer.parseInt(parameters.get("ls_scaleR"));
+			double minShapeLength = Double.parseDouble(parameters.get("ls_minShapeLength"));
+			int maxIter = Integer.parseInt(parameters.get("ls_maxIteration"));
+
+			ownClassifier = new LearnShapeletsClassifier(K, learningRate, regularization, scaleR, minShapeLength,
+					maxIter, (int) seed);
+			((LearnShapeletsClassifier) ownClassifier).setEstimateK(true); // As used in reference implementation
+
+			refClassifier = new LearnShapelets();
+			((LearnShapelets) refClassifier).setSeed(seed);
+
+			((LearnShapelets) refClassifier).K = K;
+			((LearnShapelets) refClassifier).eta = learningRate;
+			((LearnShapelets) refClassifier).lambdaW = regularization;
+			((LearnShapelets) refClassifier).R = scaleR;
+			((LearnShapelets) refClassifier).percentageOfSeriesLength = minShapeLength;
+			((LearnShapelets) refClassifier).maxIter = maxIter / 2; // Doubles the number of iterations
+
+			// Since parts of the parameters set above are overwritten, the param search
+			// approach is used to reuse the reference implementation with different
+			// parameters
+			try {
+			((LearnShapelets) refClassifier).setParamSearch(true);
+			FieldUtils.writeField(refClassifier, "lambdaWRange", new double[] { regularization }, true);
+			FieldUtils.writeField(refClassifier, "percentageOfSeriesLengthRange", new double[] { minShapeLength },
+					true);
+				FieldUtils.writeField(refClassifier, "shapeletLengthScaleRange", new int[] { scaleR }, true);
+			} catch (IllegalAccessException e) {
+				throw new IllegalStateException(
+						"Cannot test Learn Shapelets reference classifier due to parameter set problems.");
+			}
+
+			break;
+		case "TimeSeriesForest":
+			int numTrees = Integer.parseInt(parameters.get("tsf_numTree"));
+			// Ref classifier uses no depth limit
+			int maxDepth = Integer.parseInt(parameters.get("tsf_maxDepth"));
+			int numCPUs = 1;
+
+			ownClassifier = new TimeSeriesForestClassifier(numTrees, maxDepth, (int) seed, false, numCPUs, timeOut);
+
+			refClassifier = new TSF((int) seed);
+			((TSF) refClassifier).setNumTrees(numTrees);
+
+			break;
+		case "TimeSeriesBagOfFeatures":
+			int numBins = Integer.parseInt(parameters.get("tsbf_numBin"));
+			int numFolds = Integer.parseInt(parameters.get("tsbf_numFold"));
+			double zProp = Double.parseDouble(parameters.get("tsbf_zProp"));
+			int minIntervalLength = Integer.parseInt(parameters.get("tsbf_minIntervalLength"));
+
+			ownClassifier = new TimeSeriesBagOfFeaturesClassifier((int) seed, numBins, numFolds, zProp,
+					minIntervalLength);
+
+			TSBF refClf = new TSBF();
+			refClf.seedRandom(seed);
+			try {
+				FieldUtils.writeField(refClf, "stepWise", false, true);
+				FieldUtils.writeField(refClf, "numReps", 1, true);
+				FieldUtils.writeField(refClf, "numBin", numBins, true);
+				FieldUtils.writeField(refClf, "fold", numFolds, true);
+				FieldUtils.writeField(refClf, "z", zProp, true);
+				FieldUtils.writeField(refClf, "minIntervalLength", minIntervalLength, true);
+
+			} catch (IllegalAccessException e) {
+				throw new IllegalStateException("Cannot test TSBF reference classifier due to parameter set problems.");
+			}
+			refClf.setParamSearch(false);
+			refClf.searchParameters(false);
+
+			refClassifier = refClf;
+
 			break;
 		default:
 			String errorString = String.format("Please specify a valid algorithm. An invalid value was given: %s",
