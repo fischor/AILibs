@@ -3,6 +3,9 @@ package jaicore.ml.tsc.classifier.trees;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jaicore.graph.TreeNode;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.tsc.classifier.ASimplifiedTSClassifier;
@@ -19,6 +22,11 @@ import jaicore.ml.tsc.features.TimeSeriesFeature;
  *
  */
 public class TimeSeriesTree extends ASimplifiedTSClassifier<Integer> {
+	/**
+	 * Log4j logger
+	 */
+	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesTree.class);
+
 	/**
 	 * Decision information for a tree node within a <code>TimeSeriesTree</code>.
 	 */
@@ -91,6 +99,9 @@ public class TimeSeriesTree extends ASimplifiedTSClassifier<Integer> {
 	 */
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		TreeNode<TimeSeriesTreeNodeDecisionFunction> currNode = this.rootNode;
 		TreeNode<TimeSeriesTreeNodeDecisionFunction> tmpNode;
 		while ((tmpNode = decide(currNode, univInstance)) != null) {
@@ -104,7 +115,10 @@ public class TimeSeriesTree extends ASimplifiedTSClassifier<Integer> {
 	 */
 	@Override
 	public Integer predict(List<double[]> multivInstance) throws PredictionException {
-		throw new UnsupportedOperationException("Multivariate instances are not supported yet.");
+		LOGGER.warn(
+				"Dataset to be predicted is multivariate but only first time series (univariate) will be considered.");
+
+		return predict(multivInstance.get(0));
 	}
 
 	/**
@@ -112,6 +126,9 @@ public class TimeSeriesTree extends ASimplifiedTSClassifier<Integer> {
 	 */
 	@Override
 	public List<Integer> predict(TimeSeriesDataset dataset) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		if (dataset.isMultivariate())
 			throw new UnsupportedOperationException("Multivariate instances are not supported yet.");
 

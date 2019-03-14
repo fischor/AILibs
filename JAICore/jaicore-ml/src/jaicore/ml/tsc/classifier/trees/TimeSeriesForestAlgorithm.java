@@ -183,6 +183,7 @@ public class TimeSeriesForestAlgorithm extends ASimplifiedTSCAlgorithm<Integer, 
 				public TimeSeriesTree call() throws Exception {
 
 						tst.train(dataset);
+					tst.setTrained(true);
 						return tst;
 
 				}
@@ -203,6 +204,7 @@ public class TimeSeriesForestAlgorithm extends ASimplifiedTSCAlgorithm<Integer, 
 		}
 
 		this.model.setTrees(trees);
+		this.model.setTrained(true);
 
 		return this.model;
 	}

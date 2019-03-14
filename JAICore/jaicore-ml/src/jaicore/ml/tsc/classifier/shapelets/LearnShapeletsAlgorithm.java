@@ -360,6 +360,7 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 		this.model.setW_0(W_0);
 		this.model.setC(this.C);
 		this.model.setMinShapeLength(this.minShapeLength);
+		this.model.setTrained(true);
 
 		return this.model;
 	}

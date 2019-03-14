@@ -265,6 +265,7 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 		this.model.setNumClasses(C);
 		this.model.setIntervals(intervals);
 		this.model.setSubsequences(subsequences);
+		this.model.setTrained(true);
 
 		return this.model;
 	}

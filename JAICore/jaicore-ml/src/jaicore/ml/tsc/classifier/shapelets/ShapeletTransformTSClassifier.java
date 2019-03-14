@@ -189,7 +189,10 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	 */
 	@Override
 	public Integer predict(List<double[]> multivInstance) throws PredictionException {
-		throw new UnsupportedOperationException("Multivariate datasets are not supported.");
+		LOGGER.warn(
+				"Dataset to be predicted is multivariate but only first time series (univariate) will be considered.");
+
+		return predict(multivInstance.get(0));
 	}
 
 	/**

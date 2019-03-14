@@ -206,10 +206,15 @@ public class LearnShapeletsClassifier extends ASimplifiedTSClassifier<Integer> {
 	 */
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
+
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		final HashMap<Integer, Double> scoring = new HashMap<>();
 
 		univInstance = TimeSeriesUtil.zNormalize(univInstance, LearnShapeletsAlgorithm.USE_BIAS_CORRECTION);
 
+		// Calculate target class according to the paper's section 5.3
 		for (int i = 0; i < this.C; i++) {
 			double tmpScore = this.W_0[i];
 			for (int r = 0; r < this.scaleR; r++) {
@@ -240,6 +245,9 @@ public class LearnShapeletsClassifier extends ASimplifiedTSClassifier<Integer> {
 	 */
 	@Override
 	public List<Integer> predict(jaicore.ml.tsc.dataset.TimeSeriesDataset dataset) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		if (dataset.isMultivariate())
 			LOGGER.warn(
 					"Dataset to be predicted is multivariate but only first time series (univariate) will be considered.");

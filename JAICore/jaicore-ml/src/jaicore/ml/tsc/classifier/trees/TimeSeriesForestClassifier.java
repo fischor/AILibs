@@ -85,6 +85,9 @@ public class TimeSeriesForestClassifier extends ASimplifiedTSClassifier<Integer>
 	 */
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		if (univInstance == null)
 			throw new IllegalArgumentException("Instance to be predicted must not be null or empty!");
 
@@ -104,7 +107,10 @@ public class TimeSeriesForestClassifier extends ASimplifiedTSClassifier<Integer>
 	 */
 	@Override
 	public Integer predict(List<double[]> multivInstance) throws PredictionException {
-		throw new UnsupportedOperationException("Multivariate instances are not supported yet.");
+		LOGGER.warn(
+				"Dataset to be predicted is multivariate but only first time series (univariate) will be considered.");
+
+		return predict(multivInstance.get(0));
 	}
 
 	/**
@@ -112,6 +118,9 @@ public class TimeSeriesForestClassifier extends ASimplifiedTSClassifier<Integer>
 	 */
 	@Override
 	public List<Integer> predict(TimeSeriesDataset dataset) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		if (dataset.isMultivariate())
 			throw new UnsupportedOperationException("Multivariate instances are not supported yet.");
 
