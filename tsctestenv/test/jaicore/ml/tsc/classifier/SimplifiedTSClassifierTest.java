@@ -243,11 +243,11 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			}
 		} else if (predictions.get(0) instanceof String) {
 			// for (int i = 0; i < totalPreds; i++) {
-				// String prediction = (String) predictions.get(i);
-				// TODO: Add mapper
-				throw new UnsupportedOperationException("Not implemented yet.");
-				// if (prediction.equals(test.getTargets()[i]))
-				// correct++;
+			// String prediction = (String) predictions.get(i);
+			// TODO: Add mapper
+			throw new UnsupportedOperationException("Not implemented yet.");
+			// if (prediction.equals(test.getTargets()[i]))
+			// correct++;
 			// }
 		}
 
@@ -432,10 +432,10 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			// approach is used to reuse the reference implementation with different
 			// parameters
 			try {
-			((LearnShapelets) refClassifier).setParamSearch(true);
-			FieldUtils.writeField(refClassifier, "lambdaWRange", new double[] { regularization }, true);
-			FieldUtils.writeField(refClassifier, "percentageOfSeriesLengthRange", new double[] { minShapeLength },
-					true);
+				((LearnShapelets) refClassifier).setParamSearch(true);
+				FieldUtils.writeField(refClassifier, "lambdaWRange", new double[] { regularization }, true);
+				FieldUtils.writeField(refClassifier, "percentageOfSeriesLengthRange", new double[] { minShapeLength },
+						true);
 				FieldUtils.writeField(refClassifier, "shapeletLengthScaleRange", new int[] { scaleR }, true);
 			} catch (IllegalAccessException e) {
 				throw new IllegalStateException(
@@ -469,8 +469,8 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			try {
 				FieldUtils.writeField(refClf, "stepWise", false, true);
 				FieldUtils.writeField(refClf, "numReps", 1, true);
-				FieldUtils.writeField(refClf, "numBin", numBins, true);
-				FieldUtils.writeField(refClf, "fold", numFolds, true);
+				FieldUtils.writeField(refClf, "numBins", numBins, true);
+				FieldUtils.writeField(refClf, "folds", numFolds, true);
 				FieldUtils.writeField(refClf, "z", zProp, true);
 				FieldUtils.writeField(refClf, "minIntervalLength", minIntervalLength, true);
 
