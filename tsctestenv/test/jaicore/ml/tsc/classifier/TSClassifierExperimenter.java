@@ -36,12 +36,15 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 	/**
 	 * The experiment configuration
 	 */
-	private static final IMultiClassClassificationExperimentConfig CONFIG = ConfigCache
-			.getOrCreate(LearnShapeletsExperimentConfig.class);
+	private final IMultiClassClassificationExperimentConfig config;
+
+	public TSClassifierExperimenter(final IMultiClassClassificationExperimentConfig config) {
+		this.config = config;
+	}
 
 	@Override
 	public IExperimentSetConfig getConfig() {
-		return CONFIG;
+		return this.config;
 	}
 
 	@Override
@@ -58,17 +61,14 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 		LOGGER.info("Load dataset...");
 		String dataset = experiment.get("dataset");
 
-		// Pair<ASimplifiedTSClassifier<Integer>, Object> classifierPair =
-		// SimplifiedTSClassifierTest
-		// .createClassifierPairsWithDefaultParameter(experiment.get("algorithm"), (int)
-		// seed, timeout);
+		// Initialize and parameterize classifiers
 		Pair<ASimplifiedTSClassifier<Integer>, Object> classifierPair = SimplifiedTSClassifierTest
 				.createClassifierPairsWithSpecificParameter(experiment, timeout);
 
 		ASimplifiedTSClassifier<Integer> ownClassifier = classifierPair.getX();
 		Object refClassifier = classifierPair.getY();
 
-		String datasetPathPrefix = CONFIG.getDatasetFolder().getAbsolutePath() + "\\" + dataset + "\\" + dataset;
+		String datasetPathPrefix = this.config.getDatasetFolder().getAbsolutePath() + "\\" + dataset + "\\" + dataset;
 
 		try {
 			Map<String, Object> results = SimplifiedTSClassifierTest.compareClassifiers(refClassifier, ownClassifier,
@@ -83,8 +83,35 @@ public class TSClassifierExperimenter implements IExperimentSetEvaluator {
 	}
 
 	public static void main(final String[] args) {
-		ExperimentRunner runner = new ExperimentRunner(new TSClassifierExperimenter());
-		runner.randomlyConductExperiments(1, true);
+		String algorithm = "ls";
+		int numRuns = 5;
+		
+		if(args.length == 2) {
+			algorithm = args[0];
+			numRuns = Integer.parseInt(args[1]);
+		}
+		
+		IMultiClassClassificationExperimentConfig config = null;
+		switch (algorithm) {
+		case "ls":
+			config = ConfigCache.getOrCreate(LearnShapeletsExperimentConfig.class);
+			break;
+		case "st":
+			config = ConfigCache.getOrCreate(ShapeletTransformExperimentConfig.class);
+			break;
+		case "tsf":
+			config = ConfigCache.getOrCreate(TimeSeriesForestExperimentConfig.class);
+			break;
+		case "tsbf":
+			config = ConfigCache.getOrCreate(TimeSeriesBagOfFeaturesExperimentConfig.class);
+			break;
+		default:
+			config = ConfigCache.getOrCreate(LearnShapeletsExperimentConfig.class);
+		}
+		
+		ExperimentRunner runner = new ExperimentRunner(new TSClassifierExperimenter(config));
+
+		runner.randomlyConductExperiments(numRuns, true);
 		TimeoutTimer.getInstance().stop();
 		LOGGER.info("Experiment runner is shutting down.");
 		System.exit(0);

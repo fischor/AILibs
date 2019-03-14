@@ -86,7 +86,6 @@ public class TimeSeriesBagOfFeaturesRefTest {
 		FieldUtils.writeField(refClf, "numReps", 1, true);
 		refClf.setParamSearch(false);
 		refClf.searchParameters(false);
-		System.out.println("Wrote fields.");
 
 		Pair<TimeSeriesDataset, ClassMapper> trainPair = SimplifiedTimeSeriesLoader
 				.loadArff(new File(ITALY_POWER_DEMAND_TRAIN));
@@ -106,13 +105,6 @@ public class TimeSeriesBagOfFeaturesRefTest {
 
 		ownClf.train(train);
 		refClf.buildClassifier(trainingInstances);
-
-		// Predict first instance
-
-
-		System.out.println(refClf.classifyInstance(testInstances.get(0)));
-		System.out.println(Arrays.toString(refClf.distributionForInstance(testInstances.get(0))));
-		System.out.println(ownClf.predict(test.getValues(0)[0]));
 	}
 
 	@Test
@@ -156,7 +148,6 @@ public class TimeSeriesBagOfFeaturesRefTest {
 			FieldUtils.writeField(refClf, "numReps", 1, true);
 			refClf.setParamSearch(false);
 			refClf.searchParameters(false);
-			System.out.println("Wrote fields.");
 
 			Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
 					new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));
@@ -225,7 +216,6 @@ public class TimeSeriesBagOfFeaturesRefTest {
 			FieldUtils.writeField(refClf, "numReps", 1, true);
 			refClf.setParamSearch(false);
 			refClf.searchParameters(false);
-			System.out.println("Wrote fields.");
 
 			Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
 					new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));

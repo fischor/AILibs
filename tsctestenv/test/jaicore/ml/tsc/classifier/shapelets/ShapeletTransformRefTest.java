@@ -68,7 +68,7 @@ public class ShapeletTransformRefTest {
 		final int k = 205;
 		final int seed = 42;
 		final int minShapeletLength = 3;
-		final int maxShapeletLength = 24;// 24;
+		final int maxShapeletLength = 24;
 		ShapeletTransformTSClassifier ownClf = new ShapeletTransformTSClassifier(k, new FStat(), seed, false,
 				minShapeletLength, maxShapeletLength, true, new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS));
 
