@@ -13,6 +13,7 @@ import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.quality_measures.FStat;
 import jaicore.ml.tsc.quality_measures.IQualityMeasure;
 import jaicore.ml.tsc.shapelets.Shapelet;
+import jaicore.ml.tsc.shapelets.search.AMinimumDistanceSearchStrategy;
 import jaicore.ml.tsc.util.WekaUtil;
 import weka.classifiers.Classifier;
 import weka.core.Instance;
@@ -54,9 +55,9 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	private Classifier classifier;
 
 	/**
-	 * Indicator whether the optimized minimum distance search should be used.
+	 * Strategy used for the minimum distance search.
 	 */
-	private boolean useOptimizedMinimumDistSearch = false;
+	private AMinimumDistanceSearchStrategy minDistanceSearchStrategy;
 
 	/**
 	 * Constructs an Shapelet Transform classifier using <code>k</code> shapelets,
@@ -71,8 +72,6 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	 */
 	public ShapeletTransformTSClassifier(final int k, final int seed) {
 		super(new ShapeletTransformAlgorithm(k, k / 2, new FStat(), seed, true));
-		((ShapeletTransformAlgorithm) this.algorithm)
-				.setUseOptimizedMinimumDistSearch(this.useOptimizedMinimumDistSearch);
 	}
 
 	/**
@@ -95,8 +94,6 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	public ShapeletTransformTSClassifier(final int k, final IQualityMeasure qm, final int seed,
 			final boolean clusterShapelets) {
 		super(new ShapeletTransformAlgorithm(k, k / 2, qm, seed, clusterShapelets));
-		((ShapeletTransformAlgorithm) this.algorithm)
-				.setUseOptimizedMinimumDistSearch(this.useOptimizedMinimumDistSearch);
 
 	}
 
@@ -134,8 +131,6 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 			final boolean useHIVECOTEEnsemble, final TimeOut timeout) {
 		super(new ShapeletTransformAlgorithm(k, k / 2, qm, seed, clusterShapelets, minShapeletLength, maxShapeletLength,
 				useHIVECOTEEnsemble, timeout));
-		((ShapeletTransformAlgorithm) this.algorithm)
-				.setUseOptimizedMinimumDistSearch(this.useOptimizedMinimumDistSearch);
 
 	}
 
@@ -174,8 +169,11 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
 
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		double[] transformedInstance = ShapeletTransformAlgorithm.shapeletTransform(univInstance, this.shapelets,
-				this.useOptimizedMinimumDistSearch);
+				this.minDistanceSearchStrategy);
 
 		Instance inst = WekaUtil.simplifiedTSInstanceToWekaInstance(transformedInstance);
 
@@ -199,6 +197,9 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	 */
 	@Override
 	public List<Integer> predict(TimeSeriesDataset dataset) throws PredictionException {
+		if (!this.isTrained())
+			throw new PredictionException("Model has not been built before!");
+
 		// Multivariate support is not supported by the original paper's version
 		if (dataset.isMultivariate())
 			LOGGER.warn(
@@ -209,7 +210,7 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 		TimeSeriesDataset transformedDataset = null;
 		try {
 			transformedDataset = ShapeletTransformAlgorithm.shapeletTransform(dataset, this.shapelets, null, -1,
-					this.useOptimizedMinimumDistSearch);
+					this.minDistanceSearchStrategy);
 		} catch (InterruptedException e1) {
 			throw new IllegalStateException(
 					"Got interrupted within the shapelet transform although it should not happen due to unlimited timeout.");
@@ -241,25 +242,23 @@ public class ShapeletTransformTSClassifier extends ASimplifiedTSClassifier<Integ
 	}
 
 	/**
-	 * Getter for
-	 * {@link ShapeletTransformTSClassifier#useOptimizedMinimumDistSearch}.
+	 * Getter for {@link ShapeletTransformTSClassifier#minDistanceSearchStrategy}.
 	 * 
-	 * @return Returns
+	 * @return the minDistanceSearchStrategy
 	 */
-	public boolean isUseOptimizedMinimumDistSearch() {
-		return useOptimizedMinimumDistSearch;
+	public AMinimumDistanceSearchStrategy getMinDistanceSearchStrategy() {
+		return minDistanceSearchStrategy;
 	}
 
 	/**
-	 * Setter for
-	 * {@link ShapeletTransformTSClassifier#useOptimizedMinimumDistSearch}.
+	 * Setter for {@link ShapeletTransformTSClassifier#minDistanceSearchStrategy}.
 	 * 
-	 * @param useOptimizedMinimumDistSearch
-	 *            Value to be set
+	 * @param minDistanceSearchStrategy
+	 *            the minDistanceSearchStrategy to set
 	 */
-	public void setUseOptimizedMinimumDistSearch(final boolean useOptimizedMinimumDistSearch) {
-		this.useOptimizedMinimumDistSearch = useOptimizedMinimumDistSearch;
-		((ShapeletTransformAlgorithm) this.algorithm)
-				.setUseOptimizedMinimumDistSearch(this.useOptimizedMinimumDistSearch);
+	public void setMinDistanceSearchStrategy(AMinimumDistanceSearchStrategy minDistanceSearchStrategy) {
+		this.minDistanceSearchStrategy = minDistanceSearchStrategy;
+		((ShapeletTransformAlgorithm) this.algorithm).setMinDistanceSearchStrategy(minDistanceSearchStrategy);
 	}
+
 }

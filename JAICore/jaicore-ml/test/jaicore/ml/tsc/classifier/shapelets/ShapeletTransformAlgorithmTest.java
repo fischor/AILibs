@@ -10,8 +10,10 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
-import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformAlgorithm;
+import jaicore.ml.tsc.quality_measures.FStat;
 import jaicore.ml.tsc.shapelets.Shapelet;
+import jaicore.ml.tsc.shapelets.search.EarlyAbandonMinimumDistanceSearchStrategy;
+import jaicore.ml.tsc.shapelets.search.ExhaustiveMinimumDistanceSearchStrategy;
 import jaicore.ml.tsc.util.MathUtil;
 import jaicore.ml.tsc.util.TimeSeriesUtil;
 
@@ -53,7 +55,9 @@ public class ShapeletTransformAlgorithmTest {
 		double[][] dataMatrix = new double[][] { { 4, 2, 4, 6, 5 }, { 2, 2, 2, 2, 2 } };
 
 		// Using the non-optimized version
-		List<Double> actResult = ShapeletTransformAlgorithm.findDistances(shapelet, dataMatrix, false);
+		ShapeletTransformAlgorithm stAlgorithm = new ShapeletTransformAlgorithm(10, 5, new FStat(), 42, false);
+
+		List<Double> actResult = stAlgorithm.findDistances(shapelet, dataMatrix);
 
 		Assert.assertEquals("A distance has to be found for each instance!", dataMatrix.length, actResult.size());
 
@@ -61,7 +65,8 @@ public class ShapeletTransformAlgorithmTest {
 		Assert.assertEquals(2d / 3, actResult.get(1), EPS_DELTA); // (1.224744871 * 1.224744871 * 2) / 3,
 
 		// Using the optimized version
-		actResult = ShapeletTransformAlgorithm.findDistances(shapelet, dataMatrix, true);
+		stAlgorithm.setMinDistanceSearchStrategy(new EarlyAbandonMinimumDistanceSearchStrategy(true));
+		actResult = stAlgorithm.findDistances(shapelet, dataMatrix);
 
 		Assert.assertEquals("A distance has to be found for each instance!", dataMatrix.length, actResult.size());
 
@@ -146,12 +151,16 @@ public class ShapeletTransformAlgorithmTest {
 		double[] vector = new double[] { 1, 2, 3 };
 		Shapelet shapelet = new Shapelet(TimeSeriesUtil.zNormalize(vector, true), 0, 3, 0);
 
-		double actResult = ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequences(shapelet, matrix);
+		EarlyAbandonMinimumDistanceSearchStrategy optSearchStrategy = new EarlyAbandonMinimumDistanceSearchStrategy(
+				true);
+		ExhaustiveMinimumDistanceSearchStrategy unoptSearchStrategy = new ExhaustiveMinimumDistanceSearchStrategy(true);
+
+		double actResult = unoptSearchStrategy.findMinimumDistance(shapelet, matrix);
 
 		Assert.assertEquals(0.0, actResult, EPS_DELTA);
 
 		Assert.assertEquals(actResult,
-				ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequencesOptimized(shapelet, matrix),
+				optSearchStrategy.findMinimumDistance(shapelet, matrix),
 				EPS_DELTA);
 	}
 
@@ -183,8 +192,12 @@ public class ShapeletTransformAlgorithmTest {
 		Shapelet shapelet = new Shapelet(TimeSeriesUtil.zNormalize(vector, true), 0, 3, 0);
 		System.out.println("Normalized vector: " + Arrays.toString(shapelet.getData()));
 
-		double oldResult = ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequences(shapelet, matrix);
-		double oldOptimizedResult = ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequencesOptimized(shapelet,
+		EarlyAbandonMinimumDistanceSearchStrategy optSearchStrategy = new EarlyAbandonMinimumDistanceSearchStrategy(
+				true);
+		ExhaustiveMinimumDistanceSearchStrategy unoptSearchStrategy = new ExhaustiveMinimumDistanceSearchStrategy(true);
+
+		double oldResult = unoptSearchStrategy.findMinimumDistance(shapelet, matrix);
+		double oldOptimizedResult = optSearchStrategy.findMinimumDistance(shapelet,
 				matrix);
 
 		Assert.assertEquals(oldResult, oldOptimizedResult, EPS_DELTA);

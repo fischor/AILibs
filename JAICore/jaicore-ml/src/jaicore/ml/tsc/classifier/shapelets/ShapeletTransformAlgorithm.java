@@ -27,7 +27,8 @@ import jaicore.ml.tsc.classifier.ASimplifiedTSCAlgorithm;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.quality_measures.IQualityMeasure;
 import jaicore.ml.tsc.shapelets.Shapelet;
-import jaicore.ml.tsc.util.MathUtil;
+import jaicore.ml.tsc.shapelets.search.AMinimumDistanceSearchStrategy;
+import jaicore.ml.tsc.shapelets.search.ExhaustiveMinimumDistanceSearchStrategy;
 import jaicore.ml.tsc.util.TimeSeriesUtil;
 import jaicore.ml.tsc.util.WekaUtil;
 import weka.classifiers.Classifier;
@@ -123,9 +124,10 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	private final boolean useHIVECOTEEnsemble;
 
 	/**
-	 * Indicator whether the optimized minimum distance search should be used.
+	 * Strategy used for the minimum distance search.
 	 */
-	private boolean useOptimizedMinimumDistSearch = true;
+	private AMinimumDistanceSearchStrategy minDistanceSearchStrategy = new ExhaustiveMinimumDistanceSearchStrategy(
+			USE_BIAS_CORRECTION);
 
 	/**
 	 * Constructs a training algorithm for the {@link ShapeletTransformTSClassifier}
@@ -256,7 +258,7 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			// Transforming the data using the extracted shapelets
 			LOGGER.debug("Transforming the training data using the extracted shapelets.");
 			TimeSeriesDataset transfTrainingData = shapeletTransform(data, this.model.getShapelets(), this.timeout,
-					beginTime, this.useOptimizedMinimumDistSearch);
+					beginTime, this.minDistanceSearchStrategy);
 			LOGGER.debug("Finished transforming the training data.");
 
 			// Inititalize Weka ensemble
@@ -279,6 +281,8 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			LOGGER.debug("Finished ensemble training.");
 
 			this.model.setClassifier(classifier);
+			this.model.setMinDistanceSearchStrategy(this.minDistanceSearchStrategy);
+			this.model.setTrained(true);
 		} catch (InterruptedException e1) {
 			LOGGER.warn("Timeout in training Shapelet Transform classifier. Aborting...");
 			throw new AlgorithmException("Could not finish training due to timeout.");
@@ -375,13 +379,9 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 							Shapelet c_k = C.get(j).get(k);
 
 							if (c_l.getLength() > c_k.getLength())
-								distance += this.useOptimizedMinimumDistSearch
-										? getMinimumDistanceAmongAllSubsequencesOptimized(c_k, c_l.getData())
-										: getMinimumDistanceAmongAllSubsequences(c_k, c_l.getData());
+								distance += this.minDistanceSearchStrategy.findMinimumDistance(c_k, c_l.getData());
 							else
-								distance += this.useOptimizedMinimumDistSearch
-										? getMinimumDistanceAmongAllSubsequencesOptimized(c_l, c_k.getData())
-										: getMinimumDistanceAmongAllSubsequences(c_l, c_k.getData());
+								distance += this.minDistanceSearchStrategy.findMinimumDistance(c_l, c_k.getData());
 						}
 					}
 
@@ -455,7 +455,7 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			for (int l = min; l < max; l++) {
 				Set<Shapelet> W_il = generateCandidates(data[i], l, i);
 				for (Shapelet s : W_il) {
-					List<Double> D_s = findDistances(s, data, this.useOptimizedMinimumDistSearch);
+					List<Double> D_s = findDistances(s, data);
 					double quality = qualityMeasure.assessQuality(D_s, classes);
 					s.setDeterminedQuality(quality);
 					shapelets.add(new AbstractMap.SimpleEntry<Shapelet, Double>(s, quality));
@@ -537,7 +537,8 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 
 	/**
 	 * Function checking whether the two given shapelets are self-similar, i. e. if
-	 * their indices overlap.
+	 * their indices overlap. Assumes that both shapelets are from the same time
+	 * series.
 	 * 
 	 * @param s1
 	 *            First shapelet to be compared
@@ -545,7 +546,6 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 *            Second shapelet to be compared
 	 * @return Returns whether the indices of the given shapelets overlap
 	 */
-	// Assumes that both shapelets are from the same time series
 	private static boolean isSelfSimilar(final Shapelet s1, final Shapelet s2) {
 		if (s1.getInstanceIndex() == s2.getInstanceIndex()) {
 			return (s1.getStartIndex() < (s2.getStartIndex() + s2.getLength()))
@@ -563,120 +563,17 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 *            Shapelet which is compared to the instances
 	 * @param matrix
 	 *            Matrix storing the data instance vectors
-	 * @param useOptimizedMinimumDistSearch
-	 *            Indicator whether the optimized early abandon minimum distance
-	 *            search should be used
 	 * @return Returns the list of all minimum distances of the shapelet and all the
 	 *         instances
 	 */
-	public static List<Double> findDistances(final Shapelet s, final double[][] matrix,
-			final boolean useOptimizedMinimumDistSearch) {
+	public List<Double> findDistances(final Shapelet s, final double[][] matrix) {
 		List<Double> result = new ArrayList<>();
 
 		for (int i = 0; i < matrix.length; i++) {
-			result.add(useOptimizedMinimumDistSearch ? getMinimumDistanceAmongAllSubsequencesOptimized(s, matrix[i])
-					: getMinimumDistanceAmongAllSubsequences(s, matrix[i]));
+			result.add(this.minDistanceSearchStrategy.findMinimumDistance(s, matrix[i]));
 		}
 
 		return result;
-	}
-
-	/**
-	 * Optimized function returning the minimum distance among all subsequences of
-	 * the given <code>timeSeries</code> to the <code>shapelet</code>'s data. This
-	 * function implements the algorithm 2 mentioned in the original paper. It
-	 * performs the similarity search with online normalization and early abandon.
-	 * 
-	 * @param shapelet
-	 *            The shapelet to be compared to all subsequences
-	 * @param timeSeries
-	 *            The time series which subsequences are compared to the shapelet's
-	 *            data
-	 * @return Return the minimum distance among all subsequences
-	 */
-	public static double getMinimumDistanceAmongAllSubsequencesOptimized(final Shapelet shapelet,
-			final double[] timeSeries) {
-
-		double length = shapelet.getLength();
-		int m = timeSeries.length;
-
-		// Order normalized shapelet values
-		final double[] S_prime = shapelet.getData();
-		final List<Integer> A = TimeSeriesUtil.sortIndexes(S_prime, false); // descending
-		final double[] F = TimeSeriesUtil.zNormalize(TimeSeriesUtil.getInterval(timeSeries, 0, shapelet.getLength()),
-				USE_BIAS_CORRECTION);
-
-		// Online normalization
-		double p = 0;
-		double q = 0;
-		p = MathUtil.sum(TimeSeriesUtil.getInterval(timeSeries, 0, shapelet.getLength()));
-		for (int i = 0; i < length; i++) {
-			q += timeSeries[i] * timeSeries[i];
-		}
-
-		double b = MathUtil.singleSquaredEuclideanDistance(S_prime, F);
-
-		for (int i = 1; i <= m - length; i++) {
-
-			double t_i = timeSeries[i - 1];
-			double t_il = timeSeries[i - 1 + shapelet.getLength()];
-			p -= t_i;
-			q -= t_i * t_i;
-			p += t_il;
-			q += t_il * t_il;
-			double x_bar = p / length;
-			double s = q / (length) - x_bar * x_bar;
-			s = s < 0.000000001d ? 0d
-					: Math.sqrt((USE_BIAS_CORRECTION ? ((double) length / (double) (length - 1d)) : 1d) * s); //
-
-			int j = 0;
-			double d = 0d;
-
-			// Early abandon
-			while (j < length && d < b) {
-				final double normVal = (s == 0.0 ? 0d : (timeSeries[i + A.get(j)] - x_bar) / s);
-				final double diff = S_prime[A.get(j)] - normVal;
-
-				d += diff * diff;
-				j++;
-			}
-
-			if (j == length && d < b) {
-				b = d;
-			}
-		}
-
-		return b / length;
-	}
-
-	/**
-	 * Function returning the minimum distance among all subsequences of the given
-	 * <code>timeSeries</code> to the <code>shapelet</code>'s data.
-	 * 
-	 * @param shapelet
-	 *            The shapelet to be compared to all subsequences
-	 * @param timeSeries
-	 *            The time series which subsequences are compared to the shapelet's
-	 *            data
-	 * @return Return the minimum distance among all subsequences
-	 */
-	public static double getMinimumDistanceAmongAllSubsequences(final Shapelet shapelet, final double[] timeSeries) {
-		final int l = shapelet.getLength();
-		final int n = timeSeries.length;
-
-		double min = Double.MAX_VALUE;
-
-		double[] normalizedShapeletData = shapelet.getData();
-
-		// TODO: Reference implementation uses i < n-l => Leads sometimes to a better
-		// performance => Check this
-		for (int i = 0; i < n - l; i++) {
-			double tmpED = MathUtil.singleSquaredEuclideanDistance(normalizedShapeletData,
-					TimeSeriesUtil.zNormalize(TimeSeriesUtil.getInterval(timeSeries, i, i + l), USE_BIAS_CORRECTION));
-			if (tmpED < min)
-				min = tmpED;
-		}
-		return min / l;
 	}
 
 	/**
@@ -822,15 +719,15 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 *            <code>beginTime</code>
 	 * @param beginTime
 	 *            System time in ms when the training algorithm has started
-	 * @param useOptimizedMinimumDistSearch
-	 *            Indicator whether the optimized early abandon minimum distance
-	 *            search should be used
+	 * @param searchStrategy
+	 *            Search strategy used to find the minimum distance from a shapelet
+	 *            to the time series
 	 * @return Returns the transformed data set
 	 * @throws InterruptedException
 	 *             Thrown if there was a timeout
 	 */
 	public static TimeSeriesDataset shapeletTransform(final TimeSeriesDataset dataSet, final List<Shapelet> shapelets,
-			final TimeOut timeout, final long beginTime, final boolean useOptimizedMinimumDistSearch)
+			final TimeOut timeout, final long beginTime, final AMinimumDistanceSearchStrategy searchStrategy)
 			throws InterruptedException {
 		// Since the original paper only works on univariate data, this is assumed to be
 		// the case
@@ -847,7 +744,7 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			if (timeout != null && (System.currentTimeMillis() - beginTime) > timeout.milliseconds())
 				throw new InterruptedException("Interrupted training due to timeout.");
 
-			transformedTS[i] = shapeletTransform(timeSeries[i], shapelets, useOptimizedMinimumDistSearch);
+			transformedTS[i] = shapeletTransform(timeSeries[i], shapelets, searchStrategy);
 		}
 
 		dataSet.replace(0, transformedTS, dataSet.getTimestampsOrNull(0));
@@ -864,43 +761,40 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 *            The instance to be transformed
 	 * @param shapelets
 	 *            The shapelets to be used as new feature dimensions
-	 * @param useOptimizedMinimumDistSearch
-	 *            Indicator whether the optimized early abandon minimum distance
-	 *            search should be used
+	 * @param searchStrategy
+	 *            Search strategy used to find the minimum distance from a shapelet
+	 *            to the time series
 	 * @return Returns the transformed instance feature vector
 	 */
 	public static double[] shapeletTransform(final double[] instance, final List<Shapelet> shapelets,
-			final boolean useOptimizedMinimumDistSearch) {
+			final AMinimumDistanceSearchStrategy searchStrategy) {
 
 		double[] transformedTS = new double[shapelets.size()];
 
 		for (int j = 0; j < shapelets.size(); j++) {
-			transformedTS[j] = useOptimizedMinimumDistSearch
-					? ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequencesOptimized(shapelets.get(j),
-							instance)
-					: ShapeletTransformAlgorithm.getMinimumDistanceAmongAllSubsequences(shapelets.get(j), instance);
+			transformedTS[j] = searchStrategy.findMinimumDistance(shapelets.get(j), instance);
 		}
 
 		return transformedTS;
 	}
 
 	/**
-	 * Getter for {@link ShapeletTransformAlgorithm#useOptimizedMinimumDistSearch}.
+	 * Getter for {@link ShapeletTransformAlgorithm#minDistanceSearchStrategy}.
 	 * 
-	 * @return Returns
+	 * @return the minDistanceSearchStrategy
 	 */
-	public boolean isUseOptimizedMinimumDistSearch() {
-		return useOptimizedMinimumDistSearch;
+	public AMinimumDistanceSearchStrategy getMinDistanceSearchStrategy() {
+		return minDistanceSearchStrategy;
 	}
 
 	/**
-	 * Setter for {@link ShapeletTransformAlgorithm#useOptimizedMinimumDistSearch}.
+	 * Setter for {@link ShapeletTransformAlgorithm#minDistanceSearchStrategy}.
 	 * 
-	 * @param useOptimizedMinimumDistSearch
-	 *            Value to be set
+	 * @param minDistanceSearchStrategy
+	 *            the minDistanceSearchStrategy to set
 	 */
-	public void setUseOptimizedMinimumDistSearch(final boolean useOptimizedMinimumDistSearch) {
-		this.useOptimizedMinimumDistSearch = useOptimizedMinimumDistSearch;
+	public void setMinDistanceSearchStrategy(AMinimumDistanceSearchStrategy minDistanceSearchStrategy) {
+		this.minDistanceSearchStrategy = minDistanceSearchStrategy;
 	}
 
 	/**

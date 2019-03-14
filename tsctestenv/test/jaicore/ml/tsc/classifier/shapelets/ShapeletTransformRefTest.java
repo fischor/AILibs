@@ -16,7 +16,6 @@ import jaicore.ml.core.exception.EvaluationException;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
-import jaicore.ml.tsc.classifier.shapelets.ShapeletTransformTSClassifier;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import jaicore.ml.tsc.quality_measures.FStat;
 import timeseriesweka.classifiers.ShapeletTransformClassifier;
@@ -39,11 +38,11 @@ public class ShapeletTransformRefTest {
 
 	private static final String UNIVARIATE_PREFIX = "D:\\Data\\TSC\\UnivariateTSCProblems\\";
 
-	private static final String CAR_TRAIN = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\Car\\Car_TRAIN.arff";
-	private static final String CAR_TEST = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\Car\\Car_TEST.arff";
+	private static final String CAR_TRAIN = UNIVARIATE_PREFIX + "Car\\Car_TRAIN.arff";
+	private static final String CAR_TEST = UNIVARIATE_PREFIX + "Car\\Car_TEST.arff";
 
-	private static final String ARROW_HEAD_TRAIN = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\ArrowHead\\ArrowHead\\ArrowHead_TRAIN.arff";
-	private static final String ARROW_HEAD_TEST = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\ArrowHead\\ArrowHead\\ArrowHead_TEST.arff";
+	private static final String ARROW_HEAD_TRAIN = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TRAIN.arff";
+	private static final String ARROW_HEAD_TEST = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TEST.arff";
 
 	private static final String ITALY_POWER_DEMAND_TRAIN = UNIVARIATE_PREFIX
 			+ "ItalyPowerDemand\\ItalyPowerDemand_TRAIN.arff";
@@ -54,9 +53,9 @@ public class ShapeletTransformRefTest {
 	private static final String RACKET_SPORTS_TEST = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TEST.arff";
 
 	private static final String SYNTHETIC_CONTROL_TRAIN = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TRAIN.arff";
+			+ "SyntheticControl\\SyntheticControl_TRAIN.arff";
 	private static final String SYNTHETIC_CONTROL_TEST = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TEST.arff";
+			+ "SyntheticControl\\SyntheticControl_TEST.arff";
 
 	@Test
 	public void testClassifier() throws FileNotFoundException, EvaluationException, TrainingException,
@@ -72,7 +71,6 @@ public class ShapeletTransformRefTest {
 		final int maxShapeletLength = 24;// 24;
 		ShapeletTransformTSClassifier ownClf = new ShapeletTransformTSClassifier(k, new FStat(), seed, false,
 				minShapeletLength, maxShapeletLength, true, new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS));
-		ownClf.setUseOptimizedMinimumDistSearch(false);
 
 		ShapeletTransformClassifier refClf = new ShapeletTransformClassifier();
 		refClf.setNumberOfShapelets(k);
