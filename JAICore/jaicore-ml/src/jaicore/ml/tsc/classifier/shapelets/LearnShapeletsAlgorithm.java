@@ -340,6 +340,80 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 		for (int r = 0; r < this.scaleR; r++) {
 			S_hist[r] = new double[S[r].length][S[r][0].length];
 		}
+
+		// Initializes the given weights nearly around zeros (as opposed to the paper
+		// due to vanish effects)
+		double[][][] W = new double[this.C][this.scaleR][this.K];
+		double[][][] W_hist = new double[this.C][this.scaleR][this.K];
+		double[] W_0 = new double[this.C];
+		double[] W_0_hist = new double[this.C];
+		this.initializeWeights(W, W_0);
+
+		// Perform stochastic gradient descent
+		LOGGER.debug("Starting training for {} iterations...", this.maxIter);
+		this.performSGD(W, W_hist, W_0, W_0_hist, S, S_hist, dataMatrix, Y, beginTime);
+		LOGGER.debug("Finished training.");
+
+		// Update model
+		this.model.setS(S);
+		this.model.setW(W);
+		this.model.setW_0(W_0);
+		this.model.setC(this.C);
+		this.model.setMinShapeLength(this.minShapeLength);
+
+		return this.model;
+	}
+
+	/**
+	 * Randomly initializes the weights around zero. As opposed to the paper, the
+	 * approach has been changed to a different standard deviation as used in the
+	 * reference implementation for performance reasons.
+	 * 
+	 * @param W
+	 *            The weight matrix
+	 * @param W_0
+	 *            The bias vector
+	 */
+	public void initializeWeights(final double[][][] W, final double[] W_0) {
+		Random rand = new Random(this.seed);
+
+		for (int i = 0; i < this.C; i++) {
+			W_0[i] = 2 * EPS * rand.nextDouble() - 1;
+			for (int j = 0; j < this.scaleR; j++) {
+				for (int k = 0; k < this.K; k++) {
+					W[i][j][k] = 2 * EPS * rand.nextDouble() - 1;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Method performing the stochastic gradient descent to learn the weights and
+	 * shapelets.
+	 * 
+	 * @param W
+	 *            The weight matrix
+	 * @param W_hist
+	 *            The weight's history matrix used for smoothing learning
+	 * @param W_0
+	 *            The bias vector
+	 * @param W_0_hist
+	 *            The bias' history vector used for smoothing learning
+	 * @param S
+	 *            The shapelet matrix
+	 * @param S_hist
+	 *            The shapelet's history matrix used for smoothing learning
+	 * @param dataMatrix
+	 *            The data values matrix
+	 * @param Y
+	 *            The binarized target matrix
+	 * @param beginTime
+	 *            The begin time used to check for the timeout
+	 */
+	public void performSGD(final double[][][] W, final double[][][] W_hist, final double[] W_0, final double[] W_0_hist,
+			final double[][][] S, final double[][][] S_hist, final double[][] dataMatrix, final int[][] Y,
+			final long beginTime) {
+		// Define the "helper" matrices used for the gradient calculations
 		double[][][][] D = new double[this.scaleR][][][];
 		double[][][][] Xi = new double[this.scaleR][][][];
 		double[][][][] Phi = new double[this.scaleR][][][];
@@ -351,23 +425,6 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 			D[r] = new double[this.I][this.K][numberOfSegments[r]];
 			Xi[r] = new double[this.I][this.K][numberOfSegments[r]];
 			Phi[r] = new double[this.I][this.K][numberOfSegments[r]];
-		}
-
-		Random rand = new Random(this.seed);
-
-		// Initializes the given weights nearly around zeros (as opposed to the paper
-		// due to vanish effects)
-		double[][][] W = new double[this.C][this.scaleR][this.K];
-		double[][][] W_hist = new double[this.C][this.scaleR][this.K];
-		double[] W_0 = new double[this.C];
-		double[] W_0_hist = new double[this.C];
-		for (int i = 0; i < this.C; i++) {
-			W_0[i] = 2 * EPS * rand.nextDouble() - 1;
-			for (int j = 0; j < this.scaleR; j++) {
-				for (int k = 0; k < this.K; k++) {
-					W[i][j][k] = 2 * EPS * rand.nextDouble() - 1;
-				}
-			}
 		}
 
 		double[][][] Psi = new double[this.scaleR][this.I][this.K];
@@ -479,16 +536,6 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 				}
 			}
 		}
-		LOGGER.debug("Finished training.");
-
-		// Update model
-		this.model.setS(S);
-		this.model.setW(W);
-		this.model.setW_0(W_0);
-		this.model.setC(this.C);
-		this.model.setMinShapeLength(this.minShapeLength);
-
-		return this.model;
 	}
 
 	/**
