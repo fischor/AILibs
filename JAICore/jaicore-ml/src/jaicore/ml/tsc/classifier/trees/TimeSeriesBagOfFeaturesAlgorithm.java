@@ -302,7 +302,6 @@ public class TimeSeriesBagOfFeaturesAlgorithm
 			subsequences[i][1] = startIndex + subSeqLength + 1; // exclusive
 
 			int intervalLength = (int) ((double) (subsequences[i][1] - subsequences[i][0]) / ((double) d));
-			LOGGER.debug("Interval length: " + intervalLength);
 			if (intervalLength < this.minIntervalLength)
 				throw new IllegalStateException(
 						"The induced interval length must not be lower than the minimum interval length!");

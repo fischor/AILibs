@@ -182,9 +182,9 @@ public class TimeSeriesForestAlgorithm extends ASimplifiedTSCAlgorithm<Integer, 
 				@Override
 				public TimeSeriesTree call() throws Exception {
 
-						tst.train(dataset);
+					tst.train(dataset);
 					tst.setTrained(true);
-						return tst;
+					return tst;
 
 				}
 			});

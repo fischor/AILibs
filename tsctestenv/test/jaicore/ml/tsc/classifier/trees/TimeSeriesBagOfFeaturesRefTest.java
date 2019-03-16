@@ -32,46 +32,25 @@ import weka.core.converters.ArffLoader.ArffReader;
  * @author Julian Lienen
  *
  */
-@SuppressWarnings("unused")
 public class TimeSeriesBagOfFeaturesRefTest {
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesBagOfFeaturesRefTest.class);
 
 	private static final String UNIVARIATE_PREFIX = "D:\\Data\\TSC\\UnivariateTSCProblems\\";
 
-	private static final String CAR_TRAIN = UNIVARIATE_PREFIX + "Car\\Car_TRAIN.arff";
-	private static final String CAR_TEST = UNIVARIATE_PREFIX + "Car\\Car_TEST.arff";
-
-	private static final String BEEF_TRAIN = UNIVARIATE_PREFIX + "Beef\\Beef_TRAIN.arff";
-	private static final String BEEF_TEST = UNIVARIATE_PREFIX + "Beef\\Beef_TEST.arff";
-
-	private static final String ARROW_HEAD_TRAIN = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TRAIN.arff";
-	private static final String ARROW_HEAD_TEST = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TEST.arff";
-
-	private static final String ITALY_POWER_DEMAND_TRAIN = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TRAIN.arff";
-	private static final String ITALY_POWER_DEMAND_TEST = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TEST.arff";
-
-	private static final String RACKET_SPORTS_TRAIN = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TRAIN.arff";
-	private static final String RACKET_SPORTS_TEST = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TEST.arff";
-
-	private static final String SYNTHETIC_CONTROL_TRAIN = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TRAIN.arff";
-	private static final String SYNTHETIC_CONTROL_TEST = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TEST.arff";
-
-	private static final String COMPUTERS_TRAIN = UNIVARIATE_PREFIX + "\\Computers\\Computers_TRAIN.arff";
-	private static final String COMPUTERS_TEST = UNIVARIATE_PREFIX + "\\Computers\\Computers_TEST.arff";
-
 	// @Test
 	public void compareClassifierPredictions()
 			throws TimeSeriesLoadingException, Exception {
-		int seed = 30; // seedRandom.nextInt(100);
+
+		String dataset = "Beef";
+		final String trainPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TRAIN.arff";
+		final String testPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TEST.arff";
+
+		int seed = 2; // seedRandom.nextInt(100);
 
 		Random random = new Random(seed);
-		int numBins = 10; // 1 + random.nextInt(20); // As in the reference implementation
-		int numFolds = 10; // 3 + random.nextInt(15); // As in the reference implementation
-		double zProp = 0.1; // z[i % z.length];// 0.01 + random.nextDouble(); // As in the reference
+		int numBins = 20; // 1 + random.nextInt(20); // As in the reference implementation
+		int numFolds = 15; // 3 + random.nextInt(15); // As in the reference implementation
+		double zProp = 0.75; // z[i % z.length];// 0.01 + random.nextDouble(); // As in the reference
 							// implementation
 
 
@@ -88,18 +67,18 @@ public class TimeSeriesBagOfFeaturesRefTest {
 		refClf.searchParameters(false);
 
 		Pair<TimeSeriesDataset, ClassMapper> trainPair = SimplifiedTimeSeriesLoader
-				.loadArff(new File(ITALY_POWER_DEMAND_TRAIN));
+				.loadArff(new File(trainPath));
 		TimeSeriesDataset train = trainPair.getX();
 		ownClf.setClassMapper(trainPair.getY());
 		Pair<TimeSeriesDataset, ClassMapper> testPair = SimplifiedTimeSeriesLoader
-				.loadArff(new File(ITALY_POWER_DEMAND_TEST));
+				.loadArff(new File(testPath));
 		TimeSeriesDataset test = testPair.getX();
 
-		ArffReader arffReader = new ArffReader(new FileReader(new File(ITALY_POWER_DEMAND_TRAIN)));
+		ArffReader arffReader = new ArffReader(new FileReader(new File(trainPath)));
 		final Instances trainingInstances = arffReader.getData();
 		trainingInstances.setClassIndex(trainingInstances.numAttributes() - 1);
 
-		arffReader = new ArffReader(new FileReader(new File(ITALY_POWER_DEMAND_TEST)));
+		arffReader = new ArffReader(new FileReader(new File(testPath)));
 		final Instances testInstances = arffReader.getData();
 		testInstances.setClassIndex(testInstances.numAttributes() - 1);
 
@@ -114,6 +93,10 @@ public class TimeSeriesBagOfFeaturesRefTest {
 
 		// TODO: Change this?
 		org.apache.log4j.Logger.getLogger("jaicore").setLevel(org.apache.log4j.Level.DEBUG);
+
+		String dataset = "Beef";
+		final String trainPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TRAIN.arff";
+		final String testPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TEST.arff";
 
 		// int seed = 42;
 		// int numBins = 20; // As in the reference implementation
@@ -150,7 +133,7 @@ public class TimeSeriesBagOfFeaturesRefTest {
 			refClf.searchParameters(false);
 
 			Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
-					new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));
+					new File(trainPath), new File(testPath));
 			if (((double) result.get("accuracy")) > currBest) {
 				currBest = ((double) result.get("accuracy"));
 				LOGGER.info(
@@ -191,6 +174,10 @@ public class TimeSeriesBagOfFeaturesRefTest {
 		// double zProp = 1; // As in the reference implementation
 		// int minIntervalLength = 5; // As in the reference implementation
 
+		String dataset = "Beef";
+		final String trainPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TRAIN.arff";
+		final String testPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TEST.arff";
+
 		double currBest = 0;
 		double[] z = new double[] { 0.1, 0.25, 0.5, 0.75 };
 
@@ -218,7 +205,7 @@ public class TimeSeriesBagOfFeaturesRefTest {
 			refClf.searchParameters(false);
 
 			Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
-					new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));
+					new File(trainPath), new File(testPath));
 			if (((double) result.get("accuracy")) > currBest) {
 				currBest = ((double) result.get("accuracy"));
 				LOGGER.info(

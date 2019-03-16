@@ -29,42 +29,21 @@ public class TimeSeriesForestRefTest {
 
 	private static final String UNIVARIATE_PREFIX = "D:\\Data\\TSC\\UnivariateTSCProblems\\";
 
-	private static final String CAR_TRAIN = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\Car\\Car_TRAIN.arff";
-	private static final String CAR_TEST = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\Car\\Car_TEST.arff";
-
-	private static final String ARROW_HEAD_TRAIN = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\ArrowHead\\ArrowHead\\ArrowHead_TRAIN.arff";
-	private static final String ARROW_HEAD_TEST = "C:\\Users\\Julian\\Downloads\\UnivariateTSCProblems\\ArrowHead\\ArrowHead\\ArrowHead_TEST.arff";
-
-	private static final String ITALY_POWER_DEMAND_TRAIN = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TRAIN.arff";
-	private static final String ITALY_POWER_DEMAND_TEST = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TEST.arff";
-
-	private static final String RACKET_SPORTS_TRAIN = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TRAIN.arff";
-	private static final String RACKET_SPORTS_TEST = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TEST.arff";
-
-	private static final String SYNTHETIC_CONTROL_TRAIN = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TRAIN.arff";
-	private static final String SYNTHETIC_CONTROL_TEST = UNIVARIATE_PREFIX
-			+ "\\SyntheticControl\\SyntheticControl_TEST.arff";
-
-	private static final String COMPUTERS_TRAIN = UNIVARIATE_PREFIX + "\\Computers\\Computers_TRAIN.arff";
-	private static final String COMPUTERS_TEST = UNIVARIATE_PREFIX + "\\Computers\\Computers_TEST.arff";
-
-	private static final String BEEF_TRAIN = UNIVARIATE_PREFIX + "Beef\\Beef_TRAIN.arff";
-	private static final String BEEF_TEST = UNIVARIATE_PREFIX + "Beef\\Beef_TEST.arff";
-
 	@Test
 	public void testClassifier() throws FileNotFoundException, EvaluationException, TrainingException,
 			PredictionException, IOException, TimeSeriesLoadingException {
 
 		org.apache.log4j.Logger.getLogger("jaicore").setLevel(Level.DEBUG);
 
+		String dataset = "Beef";
+		final String trainPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TRAIN.arff";
+		final String testPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TEST.arff";
+
 		int seed = 42;
 		int numTrees = 500;
 		// Ref classifier uses no depth limit
-		int maxDepth = 1000;
-		int numCPUs = 1;
+		int maxDepth = 100;
+		int numCPUs = 7;
 
 		TimeSeriesForestClassifier ownClf = new TimeSeriesForestClassifier(numTrees, maxDepth, seed, false, numCPUs,
 				new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS));
@@ -73,7 +52,7 @@ public class TimeSeriesForestRefTest {
 		refClf.setNumTrees(numTrees);
 
 		Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
-				new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));
+				new File(trainPath), new File(testPath));
 
 		System.out.println("Ref clf parameters: " + refClf.getParameters());
 		System.out.println(result.toString());

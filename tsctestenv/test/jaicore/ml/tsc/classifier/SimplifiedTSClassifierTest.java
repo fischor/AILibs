@@ -83,7 +83,7 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 	public static Map<String, Object> compareClassifiers(final Object tsRefClassifier,
 			final ASimplifiedTSClassifier<?> tsClassifier, final int seed, final String tsRefClassifierParams,
 			final String tsClassifierParams, final File trainingArffFile, final File testArffFile)
-			throws FileNotFoundException, EvaluationException, TrainingException, IOException, PredictionException,
+			throws FileNotFoundException, EvaluationException, IOException, 
 			TimeSeriesLoadingException {
 
 		if (trainingArffFile == null || testArffFile == null)
@@ -107,10 +107,33 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			LOGGER.warn("The class mapper of the training data differs from the test class mapper.");
 		}
 
-		trainAndEvaluateClassifier(tsClassifier, seed, tsClassifierParams, result, train, test);
+		try {
+			trainAndEvaluateClassifier(tsClassifier, seed, tsClassifierParams, result, train, test);
+		} catch (TrainingException e) {
+			LOGGER.debug("Could not finish training of the own classifier implementation due to '{}'.",
+					e.getMessage());
+			e.printStackTrace();
+			result.put("train_time", -1);
+			result.put("eval_time", -1);
+			result.put("accuracy", 0);
+
+		} catch (PredictionException e) {
+			LOGGER.debug("Could not finish evaluation of the own classifier implementation due to '{}'.",
+					e.getMessage());
+			e.printStackTrace();
+			result.put("eval_time", -1);
+			result.put("accuracy", 0);
+		}
 
 		// Test reference classifier
-		compareRefClassifiers(tsRefClassifier, seed, tsRefClassifierParams, result, trainingArffFile, testArffFile);
+		try {
+			compareRefClassifiers(tsRefClassifier, seed, tsRefClassifierParams, result, trainingArffFile, testArffFile);
+		} catch (Exception e) {
+			if (!result.containsKey("ref_train_time"))
+				result.put("ref_train_time", -1);
+			result.put("ref_eval_time", -1);
+			result.put("ref_accuracy", 0);
+		}
 
 		return result;
 	}
@@ -316,7 +339,7 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			((ShapeletTransformClassifier) refClassifier).setNumberOfShapelets(k);
 
 			ownClassifier = new ShapeletTransformTSClassifier(k, new FStat(), (int) seed, false, minShapeletLength,
-					maxShapeletLength, true, timeout);
+					maxShapeletLength, true, timeout, 10);
 			break;
 
 		case "LearnShapelets":
@@ -401,7 +424,7 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			((ShapeletTransformClassifier) refClassifier).setNumberOfShapelets(k);
 
 			ownClassifier = new ShapeletTransformTSClassifier(k, new FStat(), (int) seed, false, minShapeletLength,
-					maxShapeletLength, true, timeOut);
+					maxShapeletLength, true, timeOut, 10);
 			break;
 
 		case "LearnShapelets":

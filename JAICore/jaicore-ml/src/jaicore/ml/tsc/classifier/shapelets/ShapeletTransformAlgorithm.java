@@ -24,6 +24,8 @@ import jaicore.basic.algorithm.events.AlgorithmEvent;
 import jaicore.basic.algorithm.exceptions.AlgorithmException;
 import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.ASimplifiedTSCAlgorithm;
+import jaicore.ml.tsc.classifier.ensemble.EnsembleProvider;
+import jaicore.ml.tsc.classifier.ensemble.MajorityConfidenceVote;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import jaicore.ml.tsc.quality_measures.IQualityMeasure;
 import jaicore.ml.tsc.shapelets.Shapelet;
@@ -32,18 +34,6 @@ import jaicore.ml.tsc.shapelets.search.ExhaustiveMinimumDistanceSearchStrategy;
 import jaicore.ml.tsc.util.TimeSeriesUtil;
 import jaicore.ml.tsc.util.WekaUtil;
 import weka.classifiers.Classifier;
-import weka.classifiers.bayes.NaiveBayes;
-import weka.classifiers.functions.Logistic;
-import weka.classifiers.functions.MultilayerPerceptron;
-import weka.classifiers.functions.SMO;
-import weka.classifiers.functions.supportVector.PolyKernel;
-import weka.classifiers.lazy.IBk;
-import weka.classifiers.meta.RotationForest;
-import weka.classifiers.meta.Vote;
-import weka.classifiers.trees.J48;
-import weka.classifiers.trees.RandomForest;
-import weka.core.EuclideanDistance;
-import weka.core.SelectedTag;
 
 /**
  * Algorithm training a ShapeletTransform classifier as described in Jason
@@ -110,7 +100,7 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	/**
 	 * Static indicator whether the bias (Bessel's) correction should be used.
 	 */
-	private static boolean USE_BIAS_CORRECTION = true;
+	private static boolean USE_BIAS_CORRECTION = false;
 
 	/**
 	 * See {@link IAlgorithm#getTimeout()}.
@@ -128,6 +118,12 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 */
 	private AMinimumDistanceSearchStrategy minDistanceSearchStrategy = new ExhaustiveMinimumDistanceSearchStrategy(
 			USE_BIAS_CORRECTION);
+
+	/**
+	 * Number of folds used within the {@link MajorityConfidenceVote} scheme for the
+	 * ensembles. Defaults to 5.
+	 */
+	private int numFolds = 5;
 
 	/**
 	 * Constructs a training algorithm for the {@link ShapeletTransformTSClassifier}
@@ -181,10 +177,12 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 	 *            otherwise)
 	 * @param timeout
 	 *            The timeout used for the training
+	 * @param numFolds
+	 *            See {@link ShapeletTransformAlgorithm#numFolds}
 	 */
 	public ShapeletTransformAlgorithm(final int k, final int noClusters, final IQualityMeasure qualityMeasure,
 			final int seed, final boolean clusterShapelets, final int minShapeletLength, final int maxShapeletLength,
-			final boolean useHIVECOTEEnsemble, final TimeOut timeout) {
+			final boolean useHIVECOTEEnsemble, final TimeOut timeout, final int numFolds) {
 		this.k = k;
 		this.qualityMeasure = qualityMeasure;
 		this.seed = seed;
@@ -195,6 +193,7 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 		this.maxShapeletLength = maxShapeletLength;
 		this.useHIVECOTEEnsemble = useHIVECOTEEnsemble;
 		this.timeout = timeout;
+		this.numFolds = numFolds;
 	}
 
 	/**
@@ -265,7 +264,9 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			LOGGER.debug("Initializing ensemble classifier...");
 			Classifier classifier = null;
 			try {
-				classifier = this.useHIVECOTEEnsemble ? initHIVECOTEEnsembleModel() : initCAWPEEnsembleModel();
+				classifier = this.useHIVECOTEEnsemble
+						? EnsembleProvider.provideHIVECOTEEnsembleModel(this.seed, numFolds)
+						: EnsembleProvider.provideCAWPEEnsembleModel(this.seed, numFolds);
 			} catch (Exception e1) {
 				throw new AlgorithmException(e1, "Could not train model due to ensemble exception.");
 			}
@@ -598,112 +599,6 @@ public class ShapeletTransformAlgorithm extends ASimplifiedTSCAlgorithm<Integer,
 			result.add(new Shapelet(TimeSeriesUtil.zNormalize(tmpData, USE_BIAS_CORRECTION), i, l, candidateIndex));
 		}
 		return result;
-	}
-
-	/**
-	 * Initializes the HIVE COTE ensemble consisting of 7 classifiers using a
-	 * majority voting strategy as described in J. Lines, S. Taylor and A. Bagnall,
-	 * "HIVE-COTE: The Hierarchical Vote Collective of Transformation-Based
-	 * Ensembles for Time Series Classification," 2016 IEEE 16th International
-	 * Conference on Data Mining (ICDM), Barcelona, 2016, pp. 1041-1046. doi:
-	 * 10.1109/ICDM.2016.0133.
-	 * 
-	 * @return Returns the initialized (but untrained) HIVE COTE ensemble model.
-	 */
-	private Classifier initHIVECOTEEnsembleModel() {
-
-		Classifier[] classifier = new Classifier[7];
-
-		Vote voter = new Vote();
-		voter.setCombinationRule(new SelectedTag(Vote.MAJORITY_VOTING_RULE, Vote.TAGS_RULES));
-
-		// SMO poly2
-		SMO smop = new SMO();
-		smop.turnChecksOff();
-		smop.setBuildCalibrationModels(true);
-		PolyKernel kernel = new PolyKernel();
-		kernel.setExponent(2);
-		smop.setKernel(kernel);
-		smop.setRandomSeed(this.seed);
-		classifier[0] = smop;
-
-		// Random Forest
-		RandomForest rf = new RandomForest();
-		rf.setSeed(this.seed);
-		rf.setNumIterations(500);
-		classifier[1] = rf;
-
-		// Rotation forest
-		RotationForest rotF = new RotationForest();
-		rotF.setSeed(this.seed);
-		rotF.setNumIterations(100);
-		classifier[2] = rotF;
-
-		// NN
-		IBk nn = new IBk();
-		classifier[3] = nn;
-
-		// Naive Bayes
-		NaiveBayes nb = new NaiveBayes();
-		classifier[4] = nb;
-
-		// C45
-		J48 c45 = new J48();
-		classifier[5] = c45;
-
-		// SMO linear
-		SMO smol = new SMO();
-		smol.turnChecksOff();
-		smol.setBuildCalibrationModels(true);
-		PolyKernel linearKernel = new PolyKernel();
-		linearKernel.setExponent(1);
-		smol.setKernel(linearKernel);
-		classifier[6] = smol;
-
-		voter.setClassifiers(classifier);
-		return voter;
-	}
-
-	/**
-	 * Initializes the CAWPE ensemble model consisting of five classifiers (SMO,
-	 * KNN, J48, Logistic and MLP) using a majority voting strategy. The ensemble
-	 * uses Weka classifiers.
-	 * 
-	 * @return Returns an initialized (but untrained) ensemble model.
-	 * @throws Exception
-	 *             Thrown when the initialization has failed
-	 */
-	private Classifier initCAWPEEnsembleModel() throws Exception {
-
-		Classifier[] classifiers = new Classifier[5];
-
-		Vote voter = new Vote();
-		voter.setCombinationRule(new SelectedTag(Vote.MAJORITY_VOTING_RULE, Vote.TAGS_RULES));
-
-		SMO smo = new SMO();
-		smo.turnChecksOff();
-		smo.setBuildCalibrationModels(true);
-		PolyKernel kl = new PolyKernel();
-		kl.setExponent(1);
-		smo.setKernel(kl);
-		smo.setRandomSeed(seed);
-		classifiers[0] = smo;
-
-		IBk k = new IBk(100);
-		k.setCrossValidate(true);
-		EuclideanDistance ed = new EuclideanDistance();
-		ed.setDontNormalize(true);
-		k.getNearestNeighbourSearchAlgorithm().setDistanceFunction(ed);
-		classifiers[1] = k;
-
-		classifiers[2] = new J48();
-
-		classifiers[3] = new Logistic();
-
-		classifiers[4] = new MultilayerPerceptron();
-
-		voter.setClassifiers(classifiers);
-		return voter;
 	}
 
 	/**

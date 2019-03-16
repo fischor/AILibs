@@ -18,6 +18,7 @@ import jaicore.ml.core.exception.TrainingException;
 import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import jaicore.ml.tsc.quality_measures.FStat;
+import jaicore.ml.tsc.shapelets.search.EarlyAbandonMinimumDistanceSearchStrategy;
 import timeseriesweka.classifiers.ShapeletTransformClassifier;
 import timeseriesweka.filters.shapelet_transforms.Shapelet;
 import timeseriesweka.filters.shapelet_transforms.distance_functions.OnlineSubSeqDistance;
@@ -31,31 +32,11 @@ import weka.core.Instance;
  * @author Julian Lienen
  *
  */
-@SuppressWarnings("unused")
 public class ShapeletTransformRefTest {
 
 	private static final double EPS_DELTA = 0.000001;
 
 	private static final String UNIVARIATE_PREFIX = "D:\\Data\\TSC\\UnivariateTSCProblems\\";
-
-	private static final String CAR_TRAIN = UNIVARIATE_PREFIX + "Car\\Car_TRAIN.arff";
-	private static final String CAR_TEST = UNIVARIATE_PREFIX + "Car\\Car_TEST.arff";
-
-	private static final String ARROW_HEAD_TRAIN = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TRAIN.arff";
-	private static final String ARROW_HEAD_TEST = UNIVARIATE_PREFIX + "ArrowHead\\ArrowHead\\ArrowHead_TEST.arff";
-
-	private static final String ITALY_POWER_DEMAND_TRAIN = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TRAIN.arff";
-	private static final String ITALY_POWER_DEMAND_TEST = UNIVARIATE_PREFIX
-			+ "ItalyPowerDemand\\ItalyPowerDemand_TEST.arff";
-
-	private static final String RACKET_SPORTS_TRAIN = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TRAIN.arff";
-	private static final String RACKET_SPORTS_TEST = UNIVARIATE_PREFIX + "RacketSports\\RacketSports_TEST.arff";
-
-	private static final String SYNTHETIC_CONTROL_TRAIN = UNIVARIATE_PREFIX
-			+ "SyntheticControl\\SyntheticControl_TRAIN.arff";
-	private static final String SYNTHETIC_CONTROL_TEST = UNIVARIATE_PREFIX
-			+ "SyntheticControl\\SyntheticControl_TEST.arff";
 
 	@Test
 	public void testClassifier() throws FileNotFoundException, EvaluationException, TrainingException,
@@ -63,14 +44,19 @@ public class ShapeletTransformRefTest {
 
 		Logger.getLogger("jaicore").setLevel(Level.DEBUG);
 
+		String dataset = "ItalyPowerDemand";
+		final String trainPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TRAIN.arff";
+		final String testPath = UNIVARIATE_PREFIX + dataset + "\\" + dataset + "_TEST.arff";
+
 		// Initialize classifiers with values selected by reference classifier by
 		// default
 		final int k = 205;
-		final int seed = 42;
+		final int seed = 10;
 		final int minShapeletLength = 3;
-		final int maxShapeletLength = 24;
+		final int maxShapeletLength = -1;
 		ShapeletTransformTSClassifier ownClf = new ShapeletTransformTSClassifier(k, new FStat(), seed, false,
-				minShapeletLength, maxShapeletLength, true, new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS));
+				minShapeletLength, maxShapeletLength, true, new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS), 5);
+		ownClf.setMinDistanceSearchStrategy(new EarlyAbandonMinimumDistanceSearchStrategy(false));
 
 		ShapeletTransformClassifier refClf = new ShapeletTransformClassifier();
 		refClf.setNumberOfShapelets(k);
@@ -78,7 +64,7 @@ public class ShapeletTransformRefTest {
 		refClf.doSTransform(true);
 
 		Map<String, Object> result = SimplifiedTSClassifierTest.compareClassifiers(refClf, ownClf, seed, null, null,
-				new File(ITALY_POWER_DEMAND_TRAIN), new File(ITALY_POWER_DEMAND_TEST));
+				new File(trainPath), new File(testPath));
 
 		System.out.println("Ref clf parameters: " + refClf.getParameters());
 		System.out.println(result.toString());
@@ -92,14 +78,12 @@ public class ShapeletTransformRefTest {
 		dist.setCandidate(inst, 0, 3, 1);
 
 		dist.setShapelet(new Shapelet(dist.getCandidate()));
-		long timeStart = System.currentTimeMillis();
 		Assert.assertEquals(0.0d, dist.calculate(new double[] { 4, 2, 4, 6, 5 }, 0), EPS_DELTA);
 
 		SubSeqDistance dist2 = new SubSeqDistance();
 
 		dist2.setCandidate(inst, 0, 3, 1);
 		dist2.setShapelet(new Shapelet(dist2.getCandidate()));
-		timeStart = System.currentTimeMillis();
 		Assert.assertEquals(0.0d, dist2.calculate(new double[] { 4, 2, 4, 6, 5 }, 0), EPS_DELTA);
 	}
 

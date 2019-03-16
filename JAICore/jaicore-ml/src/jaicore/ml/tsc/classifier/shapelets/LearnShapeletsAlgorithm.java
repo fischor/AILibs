@@ -323,6 +323,8 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 			}
 
 			this.K = (int) (Math.log(totalSegments) * (this.C - 1));
+			if (this.K < 0)
+				this.K = 1;
 		}
 
 		LOGGER.info("Parameters: k={}, learningRate={}, reg={}, r={}, minShapeLength={}, maxIter={}, Q={}, C={}", K,
