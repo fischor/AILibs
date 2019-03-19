@@ -52,6 +52,16 @@ public class MathUtil {
 		return distance;
 	}
 
+	/**
+	 * Simple Manhattan distance (sum of the absolute differences between the
+	 * vectors' elements) implementation for arrays of Integer.
+	 * 
+	 * @param A
+	 *            First argument vector
+	 * @param B
+	 *            Second argument vector
+	 * @return Returns the Manhattan distance of the two given vectors
+	 */
 	public static double intManhattanDistance(final int[] A, final int[] B) {
 		double result = 0;
 		for (int j = 0; j < A.length; j++) {
