@@ -11,6 +11,12 @@ import jaicore.ml.tsc.classifier.SimplifiedTSClassifierTest;
 import jaicore.ml.tsc.exceptions.TimeSeriesLoadingException;
 import timeseriesweka.classifiers.LPS;
 
+/**
+ * Reference tests for the {@link LearnPatternSimilarityClassifier}.
+ * 
+ * @author Julian Lienen
+ *
+ */
 public class LearnPatternSimilarityRefTest {
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSeriesBagOfFeaturesRefTest.class);
 

@@ -86,6 +86,14 @@ public class LearnPatternSimilarityAlgorithm
 		this.numSegments = numSegments;
 	}
 
+	/**
+	 * Training procedure for a {@link LearnPatternSimilarityClassifier}. At first,
+	 * it generates randomly subsequences (segments) and subsequence difference
+	 * locations used for feature generation. The generated features are used to
+	 * train a forest of {@link RandomRegressionTree} models. The predicted leaf
+	 * nodes are stored in the model for a 1NN search for an equally generated
+	 * prediction leaf node matrix.
+	 */
 	@Override
 	public LearnPatternSimilarityClassifier call()
 			throws InterruptedException, AlgorithmExecutionCanceledException, TimeoutException, AlgorithmException {
@@ -188,6 +196,27 @@ public class LearnPatternSimilarityAlgorithm
 		return this.model;
 	}
 
+	/**
+	 * Method generating the segment start indices and the segment difference
+	 * locations randomly using <code>random</code>. This method used the
+	 * <code>length</code> to specify the interval being generated.
+	 * {@link LearnPatternSimilarityAlgorithm#numSegments} * 2 many indices are
+	 * generated. The start indices can only be between
+	 * <code>[0, timeSeriesLength - length]</code> and the segment differences can
+	 * only between <code>[0, timeSeriesLength - length -1]</code> (-1 due to the
+	 * fact that the next index is used for the difference calculation).
+	 * 
+	 * @param segments
+	 *            Segment start indices used for feature generation
+	 * @param segmentsDifference
+	 *            Segment difference start indices used for feature generation
+	 * @param length
+	 *            The length of the segments
+	 * @param timeSeriesLength
+	 *            The total length of the complete time series
+	 * @param random
+	 *            Generator for the random numbers
+	 */
 	public void generateSegmentsAndDifferencesForTree(final int[] segments, final int[] segmentsDifference,
 			final int length, final int timeSeriesLength, final Random random) {
 		for (int i = 0; i < this.numSegments; i++) {
@@ -196,6 +225,14 @@ public class LearnPatternSimilarityAlgorithm
 		}
 	}
 
+	/**
+	 * Initializes a new instance of {@link RandomRegressionTree}.
+	 * 
+	 * @param numInstances
+	 *            The number of instance used for latter training (used for setting
+	 *            the minimum number of instances per leaf)
+	 * @return Returns the initialized tree
+	 */
 	public RandomRegressionTree initializeRegressionTree(final int numInstances) {
 		RandomRegressionTree regTree = new RandomRegressionTree();
 		regTree.setSeed(this.seed);
@@ -206,6 +243,22 @@ public class LearnPatternSimilarityAlgorithm
 		return regTree;
 	}
 
+	/**
+	 * Function collecting the leaf counts for the given <code>instance</code> as
+	 * predicted by <code>regTree</code>. The result is stored at the induced leaf
+	 * node index in <code>leafNodeCountsForInstance</code>.
+	 * 
+	 * @param leafNodeCountsForInstance
+	 *            The vector storing the frequencies for each leaf node of the tree
+	 *            being the last node within the prediction
+	 * @param instance
+	 *            The given Weka instance which is fed to the <code>regTree</code>
+	 * @param regTree
+	 *            The regression tree used for prediction
+	 * @throws PredictionException
+	 *             Thrown if the random regression tree could not predict anything
+	 *             for the given <code>instance</code>
+	 */
 	public static void collectLeafCounts(final int[] leafNodeCountsForInstance, final Instance instance,
 			final RandomRegressionTree regTree) throws PredictionException {
 		try {
@@ -218,6 +271,25 @@ public class LearnPatternSimilarityAlgorithm
 		leafNodeCountsForInstance[leafNodeIdx]++;
 	}
 
+	/**
+	 * Function generating a dataset storing the features being generated as
+	 * described in the original paper. The <code>segments</code> and
+	 * <code>segmentsDifference</code> indices are used to extract subsequences of
+	 * the given <code>dataMatrix</code> and generating value differences,
+	 * respectively.
+	 * 
+	 * @param attributes
+	 *            The attributes used by Weka to create the dataset
+	 * @param length
+	 *            The length considered for the feature generation
+	 * @param segments
+	 *            Segment start indices used for feature generation
+	 * @param segmentsDifference
+	 *            Segment difference start indices used for feature generation
+	 * @param dataMatrix
+	 *            Matrix storing the instance values used for feature generation
+	 * @return Returns Weka instances storing the generated features
+	 */
 	public static Instances generateSubseriesFeaturesInstances(final ArrayList<Attribute> attributes, final int length,
 			final int[] segments, final int[] segmentsDifference, final double[][] dataMatrix) {
 		Instances seqInstances = new Instances("SeqFeatures", attributes, dataMatrix.length * length);
@@ -231,6 +303,24 @@ public class LearnPatternSimilarityAlgorithm
 		return seqInstances;
 	}
 
+	/**
+	 * Function generating subseries feature instances based on the given
+	 * <code>segments</code> and <code>segmentsDifference</code> matrices. The
+	 * <code>len</code> parameter indicates which subsequence instance is generated
+	 * within this call. The values are extracted and used for calculation (for
+	 * difference) from <code>instValues</code>.
+	 * 
+	 * @param instValues
+	 *            Instance values used for feature generation
+	 * @param segments
+	 *            Segment start indices used for feature generation
+	 * @param segmentsDifference
+	 *            Segment difference start indices used for feature generation
+	 * @param len
+	 *            Current length (is added to the segment and segment difference
+	 *            locations)
+	 * @return Returns a Weka instance storing the generated features
+	 */
 	public static Instance generateSubseriesFeatureInstance(final double[] instValues, final int[] segments,
 			final int[] segmentsDifference, final int len) {
 		if (segments.length != segmentsDifference.length)
