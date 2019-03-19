@@ -32,28 +32,80 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 	 */
 	private static final Logger LOGGER = LoggerFactory.getLogger(LearnPatternSimilarityClassifier.class);
 
-	// Hyperparameters
-	private int numTrees;
-	private int numSegments;
-
-	// Trained parameters
+	/**
+	 * Segments (storing the start indexes) used for feature generation. The
+	 * segments are randomly generated in the training phase.
+	 */
 	private int[][] segments;
+
+	/**
+	 * Segment differences (storing the start indexes) used for feature generation.
+	 * The segments are randomly generated in the training phase.
+	 */
 	private int[][] segmentsDifference;
+
+	/**
+	 * The segments interval lengths used for each tree.
+	 */
 	private int[] lengthPerTree;
+
+	/**
+	 * The class attribute index per tree (as described in chapter 3.1 of the
+	 * original paper)
+	 */
 	private int[] classAttIndexPerTree;
+
+	/**
+	 * The random regression model trees used for prediction.
+	 */
 	private RandomRegressionTree[] trees;
 
+	/**
+	 * The predicted leaf nodes for each instance per segment for each tree used
+	 * within the 1NN search to predict the class values.
+	 */
 	private int[][][] trainLeafNodes;
+
+	/**
+	 * The targets of the training instances which are used within the 1NN search to
+	 * predict the class values.
+	 */
 	private int[] trainTargets;
 
+	/**
+	 * Attributes used for the generation of Weka instances to use the internal Weka
+	 * models.
+	 */
 	private ArrayList<Attribute> attributes;
 
+	/**
+	 * Standard constructor.
+	 * 
+	 * @param seed
+	 *            Seed used for randomized operations
+	 * @param numTrees
+	 *            Number of trees being trained
+	 * @param maxTreeDepth
+	 *            Maximum depth of the trained trees
+	 * @param numSegments
+	 *            Number of segments used per tree for feature generation
+	 */
 	public LearnPatternSimilarityClassifier(final int seed, final int numTrees, final int maxTreeDepth, final int numSegments) {
 		super(new LearnPatternSimilarityAlgorithm(seed, numTrees, maxTreeDepth, numSegments));
-		this.numTrees = numTrees;
-		this.numSegments = numSegments;
 	}
 
+	/**
+	 * Predicts the class by generated segment and segment difference features based
+	 * on <code>segments</code> and <code>segmentsDifference</code>. The induced
+	 * instances are propagated to the forest of {@link RandomRegressionTree}s
+	 * <code>trees</code>. The predicted leaf nodes are used within a 1NN search on
+	 * the training leaf nodes to find the nearest instance and taking its class as
+	 * prediction value.
+	 * 
+	 * @param univInstance
+	 *            Univariate instance to be predicted
+	 * 
+	 */
 	@Override
 	public Integer predict(double[] univInstance) throws PredictionException {
 		if (!this.isTrained())
@@ -62,9 +114,9 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 		if (univInstance == null)
 			throw new IllegalArgumentException("Instance to be predicted must not be null or empty!");
 		
-		int[][] leafNodeCounts = new int[this.numTrees][];
+		int[][] leafNodeCounts = new int[trees.length][];
 
-		for (int i = 0; i < this.numTrees; i++) {
+		for (int i = 0; i < trees.length; i++) {
 
 			// Generate subseries features
 			Instances seqInstances = new Instances("SeqFeatures", attributes, lengthPerTree[i]);
@@ -91,7 +143,8 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 	 * Manhattan distance.
 	 * 
 	 * @param leafNodeCounts
-	 * @return
+	 *            Leaf node counts induced during the prediction phase
+	 * @return Returns the index of the nearest neighbor instance
 	 */
 	public int findNearestInstanceIndex(final int[][] leafNodeCounts) {
 		double minDistance = Double.MAX_VALUE;
@@ -143,36 +196,6 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 		}
 		LOGGER.debug("Finished prediction.");
 		return predictions;
-	}
-
-	/**
-	 * @return the numTrees
-	 */
-	public int getNumTrees() {
-		return numTrees;
-	}
-
-	/**
-	 * @param numTrees
-	 *            the numTrees to set
-	 */
-	public void setNumTrees(int numTrees) {
-		this.numTrees = numTrees;
-	}
-
-	/**
-	 * @return the numSegments
-	 */
-	public int getNumSegments() {
-		return numSegments;
-	}
-
-	/**
-	 * @param numSegments
-	 *            the numSegments to set
-	 */
-	public void setNumSegments(int numSegments) {
-		this.numSegments = numSegments;
 	}
 
 	/**
