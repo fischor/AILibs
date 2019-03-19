@@ -11,9 +11,11 @@ import org.slf4j.LoggerFactory;
 
 import jaicore.basic.TimeOut;
 import jaicore.basic.algorithm.AlgorithmExecutionCanceledException;
+import jaicore.basic.algorithm.IAlgorithm;
 import jaicore.basic.algorithm.IAlgorithmConfig;
 import jaicore.basic.algorithm.events.AlgorithmEvent;
 import jaicore.basic.algorithm.exceptions.AlgorithmException;
+import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.tsc.classifier.ASimplifiedTSCAlgorithm;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
 import weka.core.Attribute;
@@ -38,11 +40,43 @@ public class LearnPatternSimilarityAlgorithm
 	 */
 	private static final Logger LOGGER = LoggerFactory.getLogger(LearnPatternSimilarityAlgorithm.class);
 
+	/**
+	 * Number of trees being trained.
+	 */
 	private int numTrees;
+
+	/**
+	 * Maximum depth of the trained trees.
+	 */
 	private int maxTreeDepth;
+
+	/**
+	 * Number of segments used for feature generation for each tree.
+	 */
 	private int numSegments;
+
+	/**
+	 * Seed used for randomized operations.
+	 */
 	private int seed;
 
+	/**
+	 * See {@link IAlgorithm#getTimeout()}.
+	 */
+	private TimeOut timeout = new TimeOut(Integer.MAX_VALUE, TimeUnit.SECONDS);
+
+	/**
+	 * Standard constructor.
+	 * 
+	 * @param seed
+	 *            See {@link LearnPatternSimilarityAlgorithm#seed}.
+	 * @param numTrees
+	 *            See {@link LearnPatternSimilarityAlgorithm#numTrees}.
+	 * @param maxTreeDepth
+	 *            See {@link LearnPatternSimilarityAlgorithm#maxTreeDepth}.
+	 * @param numSegments
+	 *            See {@link LearnPatternSimilarityAlgorithm#numSegments}.
+	 */
 	public LearnPatternSimilarityAlgorithm(final int seed, final int numTrees, final int maxTreeDepth,
 			final int numSegments) {
 		super();
@@ -55,9 +89,8 @@ public class LearnPatternSimilarityAlgorithm
 	@Override
 	public LearnPatternSimilarityClassifier call()
 			throws InterruptedException, AlgorithmExecutionCanceledException, TimeoutException, AlgorithmException {
-		// TODO Auto-generated method stub
 		// Training procedure
-		long beginTime = System.currentTimeMillis();
+		long beginTimeMs = System.currentTimeMillis();
 
 		TimeSeriesDataset data = this.getInput();
 		if (data == null || data.isEmpty())
@@ -93,37 +126,34 @@ public class LearnPatternSimilarityAlgorithm
 		}
 
 		for (int i = 0; i < numTrees; i++) {
+			if ((System.currentTimeMillis() - beginTimeMs) > this.getTimeout().milliseconds()) {
+				throw new TimeoutException("Timeout in tree iteration " + i + ".");
+			}
+
 			// Generate subseries length
 			lengthPerTree[i] = random.nextInt(maxLength - minLength) + minLength;
 
 			// Generate random subseries locations as described in chapter 3.1 and random
 			// subseries difference locations as described in chapter 3.4
-			for (int j = 0; j < this.numSegments; j++) {
-				segments[i][j] = random.nextInt(timeSeriesLength - lengthPerTree[i]); // Length is always l
-				segmentsDifference[i][j] = random.nextInt(timeSeriesLength - lengthPerTree[i] - 1);
-			}
+			this.generateSegmentsAndDifferencesForTree(segments[i], segmentsDifference[i], lengthPerTree[i],
+					timeSeriesLength, random);
 
 			// Generate subseries features
-			Instances seqInstances = generateSubseriesFeaturesInstances(attributes, lengthPerTree[i], this.numSegments,
-					segments[i], segmentsDifference[i], data.getNumberOfInstances(), dataMatrix);
+			Instances seqInstances = generateSubseriesFeaturesInstances(attributes, lengthPerTree[i], segments[i],
+					segmentsDifference[i], dataMatrix);
 
 			classAttIndex[i] = random.nextInt(attributes.size());
 			seqInstances.setClassIndex(classAttIndex[i]);
 
-			trees[i] = new RandomRegressionTree();
-			trees[i].setSeed(this.seed);
-			trees[i].setMaxDepth(this.maxTreeDepth);
-			trees[i].setKValue(1);
-			// trees[i].setBreakTiesRandomly(true);
-			trees[i].setMinVarianceProp(1e-5);
-			trees[i].setMinNum((int) (seqInstances.numInstances() * 0.01));
+			trees[i] = this.initializeRegressionTree(seqInstances.numInstances());
 
 			try {
 				trees[i].buildClassifier(seqInstances);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-				throw new AlgorithmException("Could not build tree in iteration " + i + ".");
+				throw new AlgorithmException("Could not build tree in iteration " + i
+						+ " due to the following exception: " + e.getMessage());
 			}
 
 			numLeavesPerTree[i] = trees[i].nosLeafNodes;
@@ -132,15 +162,13 @@ public class LearnPatternSimilarityAlgorithm
 
 				for (int len = 0; len < lengthPerTree[i]; len++) {
 					int instanceIdx = inst * lengthPerTree[i] + len;
+
 					try {
-						trees[i].distributionForInstance(seqInstances.get(instanceIdx));
-					} catch (Exception e) {
+						collectLeafCounts(leafNodeCounts[inst][i], seqInstances.get(instanceIdx), trees[i]);
+					} catch (PredictionException e1) {
 						// TODO Auto-generated catch block
-						e.printStackTrace();
-						throw new AlgorithmException("");
+						e1.printStackTrace();
 					}
-					int leafNodeIdx = RandomRegressionTree.lastNode;
-					leafNodeCounts[inst][i][leafNodeIdx]++;
 				}
 			}
 		}
@@ -160,61 +188,110 @@ public class LearnPatternSimilarityAlgorithm
 		return this.model;
 	}
 
+	public void generateSegmentsAndDifferencesForTree(final int[] segments, final int[] segmentsDifference,
+			final int length, final int timeSeriesLength, final Random random) {
+		for (int i = 0; i < this.numSegments; i++) {
+			segments[i] = random.nextInt(timeSeriesLength - length); // Length is always l
+			segmentsDifference[i] = random.nextInt(timeSeriesLength - length - 1);
+		}
+	}
+
+	public RandomRegressionTree initializeRegressionTree(final int numInstances) {
+		RandomRegressionTree regTree = new RandomRegressionTree();
+		regTree.setSeed(this.seed);
+		regTree.setMaxDepth(this.maxTreeDepth);
+		regTree.setKValue(1);
+		// regTree.setMinVarianceProp(1e-5);
+		regTree.setMinNum((int) (numInstances * 0.01)); // TODO
+		return regTree;
+	}
+
+	public static void collectLeafCounts(final int[] leafNodeCountsForInstance, final Instance instance,
+			final RandomRegressionTree regTree) throws PredictionException {
+		try {
+			regTree.distributionForInstance(instance);
+		} catch (Exception e) {
+			throw new PredictionException("Could not predict the distribution for instance for the given instance '"
+					+ instance.toString() + "' due to an internal Weka exception.", e);
+		}
+		int leafNodeIdx = RandomRegressionTree.lastNode;
+		leafNodeCountsForInstance[leafNodeIdx]++;
+	}
+
 	public static Instances generateSubseriesFeaturesInstances(final ArrayList<Attribute> attributes, final int length,
-			final int numSegments, final int[] segments, final int[] segmentsDifference,
-			final int numInstances, final double[][] dataMatrix) {
-		Instances seqInstances = new Instances("SeqFeatures", attributes, numInstances * length);
-		for (int inst = 0; inst < numInstances; inst++) {
+			final int[] segments, final int[] segmentsDifference, final double[][] dataMatrix) {
+		Instances seqInstances = new Instances("SeqFeatures", attributes, dataMatrix.length * length);
+		for (int inst = 0; inst < dataMatrix.length; inst++) {
 			double[] instValues = dataMatrix[inst];
 			for (int len = 0; len < length; len++) {
 				seqInstances.add(
-						generateSubseriesFeatureInstance(instValues, numSegments, segments, segmentsDifference, len));
+						generateSubseriesFeatureInstance(instValues, segments, segmentsDifference, len));
 			}
 		}
 		return seqInstances;
 	}
 
-	public static Instance generateSubseriesFeatureInstance(final double[] instValues, final int numSegments,
-			final int[] segments, final int[] segmentsDifference, final int len) {
-		DenseInstance instance = new DenseInstance(2 * numSegments);
-		for (int seq = 0; seq < numSegments; seq++) {
+	public static Instance generateSubseriesFeatureInstance(final double[] instValues, final int[] segments,
+			final int[] segmentsDifference, final int len) {
+		if (segments.length != segmentsDifference.length)
+			throw new IllegalArgumentException(
+					"The number of segments and the number of segments differences must be the same!");
+		if (instValues.length < len)
+			throw new IllegalArgumentException("If the segments' length is set to '" + len
+					+ "', the number of time series variables must be greater or equals!");
+
+		DenseInstance instance = new DenseInstance(2 * segments.length);
+		for (int seq = 0; seq < segments.length; seq++) {
 			instance.setValue(seq * 2, instValues[segments[seq] + len]);
 
-			double difference = instValues[segmentsDifference[seq] + len]
-					- instValues[segmentsDifference[seq] + len + 1];
+			double difference = instValues[segmentsDifference[seq] + len + 1]
+					- instValues[segmentsDifference[seq] + len];
 			instance.setValue(seq * 2 + 1, difference);
 		}
 		return instance;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public int getNumCPUs() {
-		// TODO Auto-generated method stub
-		return 0;
+		LOGGER.warn(
+				"Multithreading is not supported for LearnPatternSimilarity yet. Therefore, the number of CPUs is not considered.");
+		return 1;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public void setNumCPUs(int numberOfCPUs) {
-		// TODO Auto-generated method stub
-
+		LOGGER.warn(
+				"Multithreading is not supported for LearnShapelets yet. Therefore, the number of CPUs is not considered.");
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public void setTimeout(long timeout, TimeUnit timeUnit) {
-		// TODO Auto-generated method stub
-
+		this.timeout = new TimeOut(timeout, timeUnit);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public void setTimeout(TimeOut timeout) {
-		// TODO Auto-generated method stub
-
+		this.timeout = timeout;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public TimeOut getTimeout() {
-		// TODO Auto-generated method stub
-		return null;
+		return this.timeout;
 	}
 
 	/**
@@ -272,4 +349,65 @@ public class LearnPatternSimilarityAlgorithm
 	public IAlgorithmConfig getConfig() {
 		throw new UnsupportedOperationException("The operation to be performed is not supported.");
 	}
+
+	/**
+	 * @return the numTrees
+	 */
+	public int getNumTrees() {
+		return numTrees;
+	}
+
+	/**
+	 * @param numTrees
+	 *            the numTrees to set
+	 */
+	public void setNumTrees(int numTrees) {
+		this.numTrees = numTrees;
+	}
+
+	/**
+	 * @return the maxTreeDepth
+	 */
+	public int getMaxTreeDepth() {
+		return maxTreeDepth;
+	}
+
+	/**
+	 * @param maxTreeDepth
+	 *            the maxTreeDepth to set
+	 */
+	public void setMaxTreeDepth(int maxTreeDepth) {
+		this.maxTreeDepth = maxTreeDepth;
+	}
+
+	/**
+	 * @return the numSegments
+	 */
+	public int getNumSegments() {
+		return numSegments;
+	}
+
+	/**
+	 * @param numSegments
+	 *            the numSegments to set
+	 */
+	public void setNumSegments(int numSegments) {
+		this.numSegments = numSegments;
+	}
+
+	/**
+	 * @return the seed
+	 */
+	public int getSeed() {
+		return seed;
+	}
+
+	/**
+	 * @param seed
+	 *            the seed to set
+	 */
+	public void setSeed(int seed) {
+		this.seed = seed;
+	}
+
 }

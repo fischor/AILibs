@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import jaicore.ml.core.exception.PredictionException;
 import jaicore.ml.tsc.classifier.ASimplifiedTSClassifier;
 import jaicore.ml.tsc.dataset.TimeSeriesDataset;
+import jaicore.ml.tsc.util.MathUtil;
 import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
@@ -18,6 +19,8 @@ import weka.core.Instances;
  * Baydogan, Mustafa & Runger, George. (2015). Time series representation and
  * similarity based on local autopatterns. Data Mining and Knowledge Discovery.
  * 30. 1-34. 10.1007/s10618-015-0425-y.
+ * 
+ * This classifier currently only supports univariate time series prediction.
  * 
  * @author Julian Lienen
  *
@@ -47,7 +50,6 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 
 	public LearnPatternSimilarityClassifier(final int seed, final int numTrees, final int maxTreeDepth, final int numSegments) {
 		super(new LearnPatternSimilarityAlgorithm(seed, numTrees, maxTreeDepth, numSegments));
-		// TODO Auto-generated constructor stub
 		this.numTrees = numTrees;
 		this.numSegments = numSegments;
 	}
@@ -69,7 +71,7 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 
 			for (int len = 0; len < lengthPerTree[i]; len++) {
 				Instance instance = LearnPatternSimilarityAlgorithm.generateSubseriesFeatureInstance(univInstance,
-						this.numSegments, segments[i], segmentsDifference[i], len);
+						segments[i], segmentsDifference[i], len);
 				seqInstances.add(instance);
 			}
 
@@ -77,51 +79,51 @@ public class LearnPatternSimilarityClassifier extends ASimplifiedTSClassifier<In
 			leafNodeCounts[i] = new int[trees[i].nosLeafNodes];
 			
 			for(int inst = 0; inst< seqInstances.numInstances(); inst++) {
-				try {
-					trees[i].distributionForInstance(seqInstances.get(inst));
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-					throw new PredictionException("");
-				}
-				int leafNodeIdx = RandomRegressionTree.lastNode;
-				leafNodeCounts[i][leafNodeIdx]++;
+				LearnPatternSimilarityAlgorithm.collectLeafCounts(leafNodeCounts[i], seqInstances.get(inst), trees[i]);
 			}
 		}
+		return trainTargets[findNearestInstanceIndex(leafNodeCounts)];
+	}
 
-		// NearestNeighborClassifier nn = new NearestNeighborClassifier(1, new
-		// EuclideanDistance());
-		// nn.train
-
+	/**
+	 * Performs a simple nearest neighbor search on the stored
+	 * <code>trainLeafNodes</code> for the given <code>leafNodeCounts</code> using
+	 * Manhattan distance.
+	 * 
+	 * @param leafNodeCounts
+	 * @return
+	 */
+	public int findNearestInstanceIndex(final int[][] leafNodeCounts) {
 		double minDistance = Double.MAX_VALUE;
 		int nearestInstIdx = 0;
 		for (int inst = 0; inst < this.trainLeafNodes.length; inst++) {
-			double distance = distance(trainLeafNodes[inst], leafNodeCounts);
-			if (distance < minDistance) {
-				minDistance = distance;
+			double tmpDist = 0;
+			for (int i = 0; i < trainLeafNodes[inst].length; i++) {
+				tmpDist += MathUtil.intManhattanDistance(trainLeafNodes[inst][i], leafNodeCounts[i]);
+			}
+
+			if (tmpDist < minDistance) {
+				minDistance = tmpDist;
 				nearestInstIdx = inst;
 			}
 		}
-		return trainTargets[nearestInstIdx];
+		return nearestInstIdx;
 	}
 
-	public static double distance(final int[][] trainLeafCounts, final int[][] testLeafCounts) {
-		double result = 0;
-		for (int i = 0; i < trainLeafCounts.length; i++) {
-			for (int j = 0; j < trainLeafCounts[i].length; j++) {
-				double diff = testLeafCounts[i][j] - trainLeafCounts[i][j];
-				result += diff > 0 ? diff : (-1) * diff;
-			}
-		}
-		return result;
-	}
-
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public Integer predict(List<double[]> multivInstance) throws PredictionException {
-		// TODO Auto-generated method stub
-		return null;
+		LOGGER.warn(
+				"Dataset to be predicted is multivariate but only first time series (univariate) will be considered.");
+
+		return predict(multivInstance.get(0));
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
 	@Override
 	public List<Integer> predict(TimeSeriesDataset dataset) throws PredictionException {
 		if (!this.isTrained())

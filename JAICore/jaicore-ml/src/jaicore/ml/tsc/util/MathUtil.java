@@ -52,6 +52,14 @@ public class MathUtil {
 		return distance;
 	}
 
+	public static double intManhattanDistance(final int[] A, final int[] B) {
+		double result = 0;
+		for (int j = 0; j < A.length; j++) {
+			result += Math.abs(A[j] - B[j]);
+		}
+		return result;
+	}
+
 	/**
 	 * Function calculating the mean of the interval [t1, t2 (inclusive)] of the
 	 * given <code>vector</code>.
