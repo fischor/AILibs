@@ -158,7 +158,6 @@ public class LearnPatternSimilarityAlgorithm
 			try {
 				trees[i].buildClassifier(seqInstances);
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				throw new AlgorithmException("Could not build tree in iteration " + i
 						+ " due to the following exception: " + e.getMessage());
@@ -174,8 +173,9 @@ public class LearnPatternSimilarityAlgorithm
 					try {
 						collectLeafCounts(leafNodeCounts[inst][i], seqInstances.get(instanceIdx), trees[i]);
 					} catch (PredictionException e1) {
-						// TODO Auto-generated catch block
 						e1.printStackTrace();
+						throw new AlgorithmException("Could not prediction using the tree in iteration " + i
+								+ " due to the following exception: " + e1.getMessage());
 					}
 				}
 			}
@@ -238,8 +238,7 @@ public class LearnPatternSimilarityAlgorithm
 		regTree.setSeed(this.seed);
 		regTree.setMaxDepth(this.maxTreeDepth);
 		regTree.setKValue(1);
-		// regTree.setMinVarianceProp(1e-5);
-		regTree.setMinNum((int) (numInstances * 0.01)); // TODO
+		regTree.setMinNum((int) (numInstances * 0.01));
 		return regTree;
 	}
 
