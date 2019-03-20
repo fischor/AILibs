@@ -517,6 +517,7 @@ public class SimplifiedTSClassifierTest extends TSClassifierTest {
 			ownClassifier = new LearnPatternSimilarityClassifier((int) seed, numLPSTrees, maxLPSDepth, numSegments);
 
 			LPS refLPSClf = new LPS();
+			refLPSClf.setParamSearch(false);
 			try {
 				FieldUtils.writeField(refLPSClf, "nosTrees", numLPSTrees, true);
 				FieldUtils.writeField(refLPSClf, "treeDepth", maxLPSDepth, true);
