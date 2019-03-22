@@ -23,7 +23,7 @@ public class TimeSeriesLoaderTest {
 	/**
 	 * Path prefix for the time series classification datasets.
 	 */
-	private static final String TSC_DATASET_PATH_PREFIX = "data/";
+	private static final String TSC_DATASET_PATH_PREFIX = "data" + File.separator;
 
 	@Test
 	public void testUnivariateArffFileLoading() throws TimeSeriesLoadingException {
