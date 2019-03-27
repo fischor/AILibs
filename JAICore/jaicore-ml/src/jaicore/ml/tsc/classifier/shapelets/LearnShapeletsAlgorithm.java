@@ -99,7 +99,7 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 	/**
 	 * Indicator whether Bessel's correction should be used when normalizing arrays.
 	 */
-	public static final boolean USE_BIAS_CORRECTION = true;
+	public static final boolean USE_BIAS_CORRECTION = false;
 
 	/**
 	 * Predefined alpha parameter used within the calculations.
