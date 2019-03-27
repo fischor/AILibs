@@ -99,7 +99,7 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 	/**
 	 * Indicator whether Bessel's correction should be used when normalizing arrays.
 	 */
-	public static final boolean USE_BIAS_CORRECTION = false;
+	public static final boolean USE_BIAS_CORRECTION = true;
 
 	/**
 	 * Predefined alpha parameter used within the calculations.
@@ -264,7 +264,7 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 			try {
 				kMeans.setNumClusters(this.K);
 				kMeans.setSeed(this.seed);
-				kMeans.setMaxIterations(125);
+				kMeans.setMaxIterations(100);
 				kMeans.buildClusterer(wekaInstances);
 			} catch (Exception e) {
 				LOGGER.warn(
@@ -397,10 +397,10 @@ public class LearnShapeletsAlgorithm extends ASimplifiedTSCAlgorithm<Integer, Le
 		Random rand = new Random(this.seed);
 
 		for (int i = 0; i < this.C; i++) {
-			W_0[i] = 2 * EPS * rand.nextDouble() - 1;
+			W_0[i] = EPS * rand.nextDouble() * Math.pow(-1, rand.nextInt(2));
 			for (int j = 0; j < this.scaleR; j++) {
 				for (int k = 0; k < this.K; k++) {
-					W[i][j][k] = 2 * EPS * rand.nextDouble() - 1;
+					W[i][j][k] = EPS * rand.nextDouble() * Math.pow(-1, rand.nextInt(2));
 				}
 			}
 		}
